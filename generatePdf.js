@@ -1,25 +1,19 @@
-const puppeteer = require("puppeteer");
-const fs = require("fs");
+const puppeteer = require('puppeteer');
 
 async function generatePdf(html, outputPath) {
   const browser = await puppeteer.launch({
-  args: ["--no-sandbox", "--disable-setuid-sandbox"]
-});
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    headless: 'new'
+  });
 
   const page = await browser.newPage();
 
-  await page.setContent(html, { waitUntil: "networkidle0" });
+  await page.setContent(html, { waitUntil: 'networkidle0' });
 
   await page.pdf({
     path: outputPath,
-    format: "A4",
-    printBackground: true,
-    margin: {
-      top: "20mm",
-      right: "15mm",
-      bottom: "20mm",
-      left: "15mm"
-    }
+    format: 'A4',
+    printBackground: true
   });
 
   await browser.close();
