@@ -28,8 +28,12 @@ const API_KEY = process.env.API_KEY || "local-dev-key";
 // JSON body parsing
 app.use(express.json());
 
-// API key check
+// API key check (behalve health check)
 app.use((req, res, next) => {
+  if (req.path === "/") {
+    return next(); // health check mag altijd
+  }
+
   const key = req.headers["x-api-key"];
 
   if (!key || key !== API_KEY) {
@@ -38,6 +42,7 @@ app.use((req, res, next) => {
 
   next();
 });
+
 
 // Static folder voor PDF downloads
 app.use("/downloads", express.static(path.join(__dirname, "output")));
