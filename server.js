@@ -75,12 +75,23 @@ app.post("/generate-plan", async (req, res) => {
     const filename = `training_plan_${Date.now()}.pdf`;
     const outputPath = path.join("output", filename);
 
-    await generatePdf(html, outputPath);
+   try {
+  await generatePdf(html, outputPath);
 
-    res.json({
-      status: "ok",
-      pdfUrl: `${req.protocol}://${req.get("host")}/downloads/${filename}`
-    });
+  res.json({
+    status: "ok",
+    pdfUrl: `${req.protocol}://${req.get("host")}/downloads/${filename}`
+  });
+
+} catch (err) {
+  console.error("PDF generation error:", err);
+
+  res.status(500).json({
+    error: "PDF generation failed",
+    details: err.message
+  });
+}
+
   } catch (err) {
     console.error(">>> ERROR in generate-plan:", err);
     res.status(500).json({ error: "Internal server error" });
