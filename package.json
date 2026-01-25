@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "express": "^5.2.1",
-    "puppeteer": "^24.35.0"
-  }
+ "dependencies": {
+  "express": "^5.2.1",
+  "puppeteer-core": "^24.35.0"
+}
 }

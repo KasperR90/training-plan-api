@@ -1,7 +1,8 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 async function generatePdf(html, outputPath) {
   const browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -11,7 +12,6 @@ async function generatePdf(html, outputPath) {
   });
 
   const page = await browser.newPage();
-
   await page.setContent(html, { waitUntil: 'networkidle0' });
 
   await page.pdf({
