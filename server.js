@@ -26,7 +26,10 @@ const OUTPUT_DIR = path.join(__dirname, "output");
 app.use(express.json());
 
 app.use((req, res, next) => {
-  if (req.path === "/") return next();
+  // Public routes
+  if (req.path === "/" || req.path.startsWith("/downloads")) {
+    return next();
+  }
 
   const key = req.headers["x-api-key"];
   if (!key || key !== API_KEY) {
@@ -35,6 +38,7 @@ app.use((req, res, next) => {
 
   next();
 });
+
 
 app.use("/downloads", express.static(OUTPUT_DIR));
 
