@@ -11,20 +11,20 @@ const { getMonday } = require("./engine/dates");
 const { buildPlan } = require("./engine/plan");
 const { renderHtml } = require("./renderHtml");
 
-// PDF generator (CORRECT import)
+// PDF generator
 const generatePdf = require("./generatePdf");
 
 console.log(">>> internal modules loaded");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 const API_KEY = process.env.API_KEY || "local-dev-key";
+
+const OUTPUT_DIR = path.join(__dirname, "output");
 
 // ---------- Middleware ----------
 app.use(express.json());
 
-// API key middleware (health check allowed)
 app.use((req, res, next) => {
   if (req.path === "/") return next();
 
@@ -36,12 +36,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static downloads
-const OUTPUT_DIR = path.join(__dirname, "output");
 app.use("/downloads", express.static(OUTPUT_DIR));
 
 // ---------- Routes ----------
-
 app.get("/", (req, res) => {
   res.send("Training plan API is running");
 });
@@ -60,10 +57,8 @@ app.post("/generate-plan", async (req, res) => {
       numberOfWeeks
     } = req.body;
 
-    // 1️⃣ Calculate start date
     const startMonday = getMonday(raceDate);
 
-    // 2️⃣ Build training plan
     const plan = buildPlan({
       startMonday,
       numberOfWeeks,
@@ -74,16 +69,40 @@ app.post("/generate-plan", async (req, res) => {
       referenceTime
     });
 
-    // 3️⃣ Render HTML
     const html = renderHtml(plan, raceDate);
 
-    // 4️⃣ Ensure output directory exists
     if (!fs.existsSync(OUTPUT_DIR)) {
       fs.mkdirSync(OUTPUT_DIR);
     }
 
-    // 5️⃣ Generate PDF
     const filename = `training_plan_${Date.now()}.pdf`;
     const outputPath = path.join(OUTPUT_DIR, filename);
 
-    await gen
+    await generatePdf(html, outputPath);
+
+    res.json({
+      status: "ok",
+      pdfUrl: `${req.protocol}://${req.get("host")}/downloads/${filename}`
+    });
+  } catch (err) {
+    console.error(">>> ERROR in /generate-plan:", err);
+    res.status(500).json({
+      error: "PDF generation failed",
+      details: err.message
+    });
+  }
+});
+
+// ---------- Server ----------
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`>>> API listening on port ${PORT}`);
+});
+
+// ---------- Safety ----------
+process.on("uncaughtException", err => {
+  console.error(">>> Uncaught exception:", err);
+});
+
+process.on("unhandledRejection", err => {
+  console.error(">>> Unhandled rejection:", err);
+});
