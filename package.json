@@ -8,8 +8,9 @@
     "start": "node server.js"
   },
   "dependencies": {
-  "express": "^5.2.1",
-  "puppeteer-core": "^24.35.0",
-  "@sparticuz/chromium": "^123.0.0"
-}
+    "@sparticuz/chromium": "^123.0.0",
+    "express": "^5.2.1",
+    "puppeteer-core": "^24.35.0",
+    "stripe": "^20.2.0"
+  }
 }
