@@ -130,6 +130,13 @@ app.use(express.json());
  * API KEY MIDDLEWARE (STRIPE UITGESLOTEN)
  ************************************/
 app.use((req, res, next) => {
+
+  // ✅ Always allow OPTIONS (CORS preflight)
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  // ✅ Public routes
   if (
     req.path === "/" ||
     req.path.startsWith("/downloads") ||
@@ -145,6 +152,7 @@ app.use((req, res, next) => {
 
   next();
 });
+
 
 /************************************
  * STATIC FILES
