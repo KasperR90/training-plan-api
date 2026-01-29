@@ -145,11 +145,14 @@ app.post("/create-checkout-session", async (req, res) => {
 
     const planId = `plan_${Date.now()}`;
     const planFile = path.join(PLANS_DIR, `${planId}.json`);
-
     fs.writeFileSync(planFile, JSON.stringify(req.body, null, 2));
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+
+      // 🔴 DIT WAS DE MISSENDE SCHAKEL
+      payment_method_types: ["card"],
+
       line_items: [
         {
           price_data: {
@@ -162,17 +165,27 @@ app.post("/create-checkout-session", async (req, res) => {
           quantity: 1
         }
       ],
+
       success_url: "https://runiq.run/success",
       cancel_url: "https://runiq.run",
       metadata: { plan_id: planId }
     });
 
-    return res.json({ checkoutUrl: session.url });
+    // 🔴 EXTRA VEILIGHEID
+    if (!session.url) {
+      console.error("❌ Stripe session created without URL", session);
+      return res.status(500).json({ error: "Stripe session has no URL" });
+    }
+
+    res.json({ checkoutUrl: session.url });
+
   } catch (err) {
-    console.error("❌ Checkout error:", err);
-    return res.status(500).json({ error: "Checkout failed" });
+    // 🔴 DIT WIL JE ZIEN IN RENDER LOGS
+    console.error("❌ Stripe checkout failed:", err);
+    res.status(500).json({ error: err.message });
   }
 });
+
 
 /************************************
  * HELPERS
