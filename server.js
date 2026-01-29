@@ -25,25 +25,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const OUTPUT_DIR = path.join(__dirname, "output");
 
 // ===================================================
-// 🔧 Helper: referentieafstand normaliseren
-// ===================================================
-function normalizeReferenceDistance(distance) {
-  if (!distance) return "marathon";
-
-  const d = distance.toString().toLowerCase();
-
-  if (d === "42" || d === "42.2" || d.includes("marathon")) return "marathon";
-  if (d === "21" || d.includes("half")) return "half";
-  if (d === "10" || d.includes("10")) return "10k";
-  if (d === "5" || d.includes("5")) return "5k";
-
-  // Speciaal geval: 30 km → marathon-pace
-  if (d === "30") return "marathon";
-
-  throw new Error(`Onbekende referentieafstand: ${distance}`);
-}
-
-// ===================================================
 // ✅ STRIPE WEBHOOK — MOET HELEMAAL BOVENAAN
 // ===================================================
 app.post(
@@ -88,7 +69,7 @@ app.post(
         sessionsPerWeek: parseInt(metadata.sessions, 10),
         startWeekVolume: 30,     // tijdelijk vaste waarde
         weeklyIncrease: 10,      // tijdelijk vaste waarde
-        referenceDistance: normalizeReferenceDistance(metadata.distance),
+        referenceDistance: metadata.distance,
         referenceTime: metadata.goal_time
       });
 
