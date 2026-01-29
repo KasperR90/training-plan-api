@@ -8,7 +8,7 @@ const Stripe = require("stripe");
 console.log(">>> core modules loaded");
 
 // ===============================
-// Interne logica (bestond al)
+// Interne logica
 // ===============================
 const { getMonday } = require("./engine/dates");
 const { buildPlan } = require("./engine/plan");
@@ -23,6 +23,25 @@ const API_KEY = process.env.API_KEY || "local-dev-key";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const OUTPUT_DIR = path.join(__dirname, "output");
+
+// ===================================================
+// 🔧 Helper: referentieafstand normaliseren
+// ===================================================
+function normalizeReferenceDistance(distance) {
+  if (!distance) return "marathon";
+
+  const d = distance.toString().toLowerCase();
+
+  if (d === "42" || d === "42.2" || d.includes("marathon")) return "marathon";
+  if (d === "21" || d.includes("half")) return "half";
+  if (d === "10" || d.includes("10")) return "10k";
+  if (d === "5" || d.includes("5")) return "5k";
+
+  // Speciaal geval: 30 km → marathon-pace
+  if (d === "30") return "marathon";
+
+  throw new Error(`Onbekende referentieafstand: ${distance}`);
+}
 
 // ===================================================
 // ✅ STRIPE WEBHOOK — MOET HELEMAAL BOVENAAN
@@ -45,7 +64,7 @@ app.post(
       return res.status(403).send("Invalid Stripe signature");
     }
 
-    // Alleen afronden checkout verwerken
+    // Alleen checkout afrondingen verwerken
     if (event.type !== "checkout.session.completed") {
       return res.status(200).json({ ignored: true });
     }
@@ -67,9 +86,9 @@ app.post(
         startMonday,
         numberOfWeeks: parseInt(metadata.weeks, 10),
         sessionsPerWeek: parseInt(metadata.sessions, 10),
-        startWeekVolume: 30,        // tijdelijk vaste waarde
-        weeklyIncrease: 10,         // tijdelijk vaste waarde
-        referenceDistance: metadata.distance,
+        startWeekVolume: 30,     // tijdelijk vaste waarde
+        weeklyIncrease: 10,      // tijdelijk vaste waarde
+        referenceDistance: normalizeReferenceDistance(metadata.distance),
         referenceTime: metadata.goal_time
       });
 
@@ -91,7 +110,7 @@ app.post(
 
       return res.status(200).json({ success: true });
     } catch (err) {
-      console.error("❌ Error during PDF generation:", err);
+      console.error("❌ Error during PDF generation:", err.message);
       return res.status(500).json({ error: "PDF generation failed" });
     }
   }
