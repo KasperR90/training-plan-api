@@ -8,14 +8,17 @@ console.log(">>> index.js starting");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const Stripe = require("stripe");
 const cors = require("cors");
+const Stripe = require("stripe");
 
 // Engine & rendering
 const { getMonday } = require("./engine/dates");
 const { buildPlan } = require("./engine/plan");
 const { renderHtml } = require("./renderHtml");
 const generatePdf = require("./generatePdf");
+
+// Mail
+const sgMail = require("@sendgrid/mail");
 
 console.log(">>> modules loaded");
 
@@ -24,9 +27,11 @@ console.log(">>> modules loaded");
  ************************************/
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY || "local-dev-key";
+const API_KEY = process.env.API_KEY;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const OUTPUT_DIR = path.join(__dirname, "output");
 const PLANS_DIR = path.join(__dirname, "plans");
@@ -61,17 +66,17 @@ app.post(
     const customerEmail = session.customer_details?.email;
 
     if (!planId) {
-      console.error("❌ No plan_id in Stripe metadata");
+      console.error("❌ No plan_id in metadata");
       return res.status(200).json({ error: "Missing plan_id" });
     }
 
-    console.log("✅ Stripe webhook received for plan:", planId);
+    console.log("✅ Stripe webhook received:", planId);
 
     try {
-      // 1️⃣ Formulierdata laden
+      // 1️⃣ Load form data
       const formData = loadPlanData(planId);
 
-      // 2️⃣ Trainingsschema bouwen
+      // 2️⃣ Build training plan
       const startMonday = getMonday(formData.raceDate);
 
       const plan = buildPlan({
@@ -84,59 +89,54 @@ app.post(
         referenceTime: formData.referenceTime
       });
 
-      // 3️⃣ HTML → PDF
+      // 3️⃣ Generate PDF
+      fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
       const html = renderHtml(plan, formData.raceDate);
-
-      if (!fs.existsSync(OUTPUT_DIR)) {
-        fs.mkdirSync(OUTPUT_DIR);
-      }
-
       const filename = `${planId}.pdf`;
       const outputPath = path.join(OUTPUT_DIR, filename);
 
       await generatePdf(html, outputPath);
 
       const pdfUrl = `${process.env.PUBLIC_API_URL}/downloads/${filename}`;
-
       console.log("📄 PDF generated:", pdfUrl);
 
-      // 4️⃣ (later) mail versturen
+      // 4️⃣ Send email
       if (customerEmail) {
-  	await sendPlanEmail(customerEmail, pdfUrl);
-  	console.log(`📧 Email sent to ${customerEmail}`);
-	}
+        await sendPlanEmail(customerEmail, pdfUrl);
+        console.log(`📧 Email sent to ${customerEmail}`);
+      }
 
       return res.status(200).json({ success: true });
     } catch (err) {
-      console.error("❌ Error in webhook flow:", err);
+      console.error("❌ Webhook error:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 );
 
 /************************************
- * JSON & CORS MIDDLEWARE (NA WEBHOOK)
+ * CORS & PRE-FLIGHT (KRITISCH)
  ************************************/
-app.use(cors({
+const corsOptions = {
   origin: "https://runiq.run",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "x-api-key"]
-}));
+};
 
-app.options("*", cors());
+// 👉 PRE-FLIGHT MOET VOOR API-KEY MIDDLEWARE
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
+
+/************************************
+ * JSON MIDDLEWARE
+ ************************************/
 app.use(express.json());
 
 /************************************
- * API KEY MIDDLEWARE (STRIPE UITGESLOTEN)
+ * API KEY MIDDLEWARE
  ************************************/
 app.use((req, res, next) => {
-
-  // ✅ Always allow OPTIONS (CORS preflight)
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
-  // ✅ Public routes
   if (
     req.path === "/" ||
     req.path.startsWith("/downloads") ||
@@ -153,7 +153,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
 /************************************
  * STATIC FILES
  ************************************/
@@ -167,21 +166,17 @@ app.get("/", (req, res) => {
 });
 
 /**
- * STAP A — Checkout starten + formulierdata opslaan
+ * START STRIPE CHECKOUT
  */
 app.post("/create-checkout-session", async (req, res) => {
   try {
+    fs.mkdirSync(PLANS_DIR, { recursive: true });
+
     const planId = `plan_${Date.now()}`;
-
-    if (!fs.existsSync(PLANS_DIR)) {
-      fs.mkdirSync(PLANS_DIR);
-    }
-
-    // 1️⃣ Formulierdata opslaan
     const planFile = path.join(PLANS_DIR, `${planId}.json`);
+
     fs.writeFileSync(planFile, JSON.stringify(req.body, null, 2));
 
-    // 2️⃣ Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -197,18 +192,16 @@ app.post("/create-checkout-session", async (req, res) => {
           quantity: 1
         }
       ],
-      success_url: "https://jouwdomein.nl/success",
-      cancel_url: "https://jouwdomein.nl/cancel",
+      success_url: "https://runiq.run/success",
+      cancel_url: "https://runiq.run",
       metadata: {
         plan_id: planId
       }
     });
 
-    res.json({
-      checkoutUrl: session.url
-    });
+    res.json({ checkoutUrl: session.url });
   } catch (err) {
-    console.error("❌ Error creating checkout session:", err);
+    console.error("❌ Checkout error:", err);
     res.status(500).json({ error: "Unable to create checkout session" });
   }
 });
@@ -218,12 +211,27 @@ app.post("/create-checkout-session", async (req, res) => {
  ************************************/
 function loadPlanData(planId) {
   const filePath = path.join(PLANS_DIR, `${planId}.json`);
-
   if (!fs.existsSync(filePath)) {
     throw new Error(`Plan data not found for ${planId}`);
   }
-
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
+
+async function sendPlanEmail(to, pdfUrl) {
+  const msg = {
+    to,
+    from: process.env.SENDER_EMAIL,
+    subject: "Your RUNIQ training plan is ready 🏃‍♂️",
+    html: `
+      <h2>Your training plan is ready</h2>
+      <p>You can download your plan here:</p>
+      <p><a href="${pdfUrl}" target="_blank">Download PDF</a></p>
+      <p>Train smarter. Automatically.</p>
+      <p>— RUNIQ</p>
+    `
+  };
+
+  await sgMail.send(msg);
 }
 
 /************************************
@@ -232,35 +240,3 @@ function loadPlanData(planId) {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 RUNIQ API listening on port ${PORT}`);
 });
-
-
-/************************************
- * MAIL HELPER
- ************************************/
-
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-async function sendPlanEmail(to, pdfUrl) {
-  const msg = {
-    to,
-    from: process.env.SENDER_EMAIL,
-    subject: "Your RUNIQ training plan is ready 🏃‍♂️",
-    html: `
-      <h2>Your personalized training plan is ready</h2>
-      <p>Thanks for using <strong>RUNIQ</strong>.</p>
-      <p>You can download your training plan here:</p>
-      <p>
-        <a href="${pdfUrl}" target="_blank">
-          👉 Download your training plan (PDF)
-        </a>
-      </p>
-      <p>Train smarter. Automatically.</p>
-      <br/>
-      <p>— RUNIQ</p>
-    `
-  };
-
-  await sgMail.send(msg);
-}
-
