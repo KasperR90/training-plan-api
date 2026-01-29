@@ -10,15 +10,13 @@ const fs = require("fs");
 const path = require("path");
 const Stripe = require("stripe");
 
-console.log(">>> core modules loaded");
-
-// Internal logic
+// Engine & rendering
 const { getMonday } = require("./engine/dates");
 const { buildPlan } = require("./engine/plan");
 const { renderHtml } = require("./renderHtml");
 const generatePdf = require("./generatePdf");
 
-console.log(">>> internal modules loaded");
+console.log(">>> modules loaded");
 
 /************************************
  * APP & STRIPE INIT
@@ -28,15 +26,17 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || "local-dev-key";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 const OUTPUT_DIR = path.join(__dirname, "output");
+const PLANS_DIR = path.join(__dirname, "plans");
 
 /************************************
- * STRIPE WEBHOOK — MOET HELEMAAL BOVENAAN
+ * STRIPE WEBHOOK (MOET BOVENAAN)
  ************************************/
 app.post(
   "/webhook/stripe",
   express.raw({ type: "*/*" }),
-  (req, res) => {
+  async (req, res) => {
     const signature = req.headers["stripe-signature"];
     let event;
 
@@ -60,29 +60,60 @@ app.post(
     const customerEmail = session.customer_details?.email;
 
     if (!planId) {
-      console.error("❌ No plan_id found in Stripe metadata");
+      console.error("❌ No plan_id in Stripe metadata");
       return res.status(200).json({ error: "Missing plan_id" });
     }
 
-    console.log("✅ Payment confirmed for plan:", planId);
+    console.log("✅ Stripe webhook received for plan:", planId);
 
     try {
-      const planData = getPlanData(planId);
-      const pdfUrl = generateTrainingPlanPdf(planData);
+      // 1️⃣ Formulierdata laden
+      const formData = loadPlanData(planId);
 
-      sendPlanEmail(customerEmail, pdfUrl);
+      // 2️⃣ Trainingsschema bouwen
+      const startMonday = getMonday(formData.raceDate);
 
-      console.log("📄 Plan generated and emailed:", pdfUrl);
+      const plan = buildPlan({
+        startMonday,
+        numberOfWeeks: formData.numberOfWeeks,
+        sessionsPerWeek: formData.sessionsPerWeek,
+        startWeekVolume: formData.startWeekVolume,
+        weeklyIncrease: formData.weeklyIncrease,
+        referenceDistance: formData.referenceDistance,
+        referenceTime: formData.referenceTime
+      });
+
+      // 3️⃣ HTML → PDF
+      const html = renderHtml(plan, formData.raceDate);
+
+      if (!fs.existsSync(OUTPUT_DIR)) {
+        fs.mkdirSync(OUTPUT_DIR);
+      }
+
+      const filename = `${planId}.pdf`;
+      const outputPath = path.join(OUTPUT_DIR, filename);
+
+      await generatePdf(html, outputPath);
+
+      const pdfUrl = `${process.env.PUBLIC_API_URL}/downloads/${filename}`;
+
+      console.log("📄 PDF generated:", pdfUrl);
+
+      // 4️⃣ (later) mail versturen
+      if (customerEmail) {
+        console.log(`📧 Ready to send email to ${customerEmail}`);
+      }
+
       return res.status(200).json({ success: true });
     } catch (err) {
-      console.error("❌ Error generating plan:", err);
+      console.error("❌ Error in webhook flow:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 );
 
 /************************************
- * JSON MIDDLEWARE (NA WEBHOOK!)
+ * JSON MIDDLEWARE (NA WEBHOOK)
  ************************************/
 app.use(express.json());
 
@@ -119,15 +150,21 @@ app.get("/", (req, res) => {
 });
 
 /**
- * 🆕 STAP 3 / A
- * Stripe Checkout Session aanmaken MET plan_id
+ * STAP A — Checkout starten + formulierdata opslaan
  */
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const planId = `plan_${Date.now()}`;
 
-    // TODO (volgende stap): sla formulierdata op met planId
+    if (!fs.existsSync(PLANS_DIR)) {
+      fs.mkdirSync(PLANS_DIR);
+    }
 
+    // 1️⃣ Formulierdata opslaan
+    const planFile = path.join(PLANS_DIR, `${planId}.json`);
+    fs.writeFileSync(planFile, JSON.stringify(req.body, null, 2));
+
+    // 2️⃣ Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -151,8 +188,7 @@ app.post("/create-checkout-session", async (req, res) => {
     });
 
     res.json({
-      checkoutUrl: session.url,
-      planId
+      checkoutUrl: session.url
     });
   } catch (err) {
     console.error("❌ Error creating checkout session:", err);
@@ -161,30 +197,16 @@ app.post("/create-checkout-session", async (req, res) => {
 });
 
 /************************************
- * BESTAANDE PDF-LOGICA (tijdelijk)
+ * HELPERS
  ************************************/
-function getPlanData(planId) {
-  const raceDate = "2026-04-12";
-  const startMonday = getMonday(raceDate);
+function loadPlanData(planId) {
+  const filePath = path.join(PLANS_DIR, `${planId}.json`);
 
-  return {
-    startMonday,
-    numberOfWeeks: 12,
-    sessionsPerWeek: 3,
-    startWeekVolume: 30,
-    weeklyIncrease: 5,
-    referenceDistance: "10K",
-    referenceTime: "45:30"
-  };
-}
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Plan data not found for ${planId}`);
+  }
 
-function generateTrainingPlanPdf(planData) {
-  const plan = buildPlan(planData);
-  return "https://example.com/fake-training-plan.pdf";
-}
-
-function sendPlanEmail(email, pdfUrl) {
-  console.log(`📧 Sending plan to ${email}: ${pdfUrl}`);
+  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
 
 /************************************
