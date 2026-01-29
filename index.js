@@ -42,17 +42,9 @@ app.post(
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
 
-console.log('==============================');
-console.log('SESSION KEYS:', Object.keys(session));
-console.log('SESSION METADATA:', session.metadata);
-console.log('CUSTOMER DETAILS:', session.customer_details);
-console.log('PAYMENT INTENT:', session.payment_intent);
-console.log('==============================');
-
 
       // 🔍 Debug (tijdelijk, mag je later verwijderen)
-      console.log('🔍 Volledige session object:');
-      console.log(JSON.stringify(session, null, 2));
+            console.log(JSON.stringify(session, null, 2));
 
       // 📦 Metadata
       const metadata = session.metadata || {};
@@ -62,8 +54,7 @@ console.log('==============================');
       const trainingPlan = generateTrainingPlan(metadata);
 
       console.log('🏃 Trainingsschema gegenereerd:');
-      console.log(JSON.stringify(trainingPlan, null, 2));
-    }
+      }
 
     // Stripe verwacht ALTIJD een 200-response
     res.json({ received: true });
