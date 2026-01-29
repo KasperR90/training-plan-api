@@ -115,9 +115,11 @@ app.post(
 );
 
 /************************************
- * JSON MIDDLEWARE (NA WEBHOOK)
+ * JSON & CORS MIDDLEWARE (NA WEBHOOK)
  ************************************/
-app.use(cors());
+app.use(cors({
+  origin: "https://runiq.run"
+}));
 app.use(express.json());
 
 /************************************
