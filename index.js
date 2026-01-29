@@ -136,22 +136,11 @@ app.use(express.json());
 /************************************
  * API KEY MIDDLEWARE
  ************************************/
-app.use((req, res, next) => {
-  if (
-    req.path === "/" ||
-    req.path.startsWith("/downloads") ||
-    req.path.startsWith("/webhook")
-  ) {
-    return next();
-  }
+app.use(cors({
+  origin: "https://runiq.run"
+}));
+app.use(express.json());
 
-  const key = req.headers["x-api-key"];
-  if (!key || key !== API_KEY) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-
-  next();
-});
 
 /************************************
  * STATIC FILES
