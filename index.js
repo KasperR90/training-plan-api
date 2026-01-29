@@ -27,17 +27,15 @@ console.log(">>> modules loaded");
  ************************************/
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const OUTPUT_DIR = path.join(__dirname, "output");
 const PLANS_DIR = path.join(__dirname, "plans");
 
 /************************************
- * STRIPE WEBHOOK (MOET BOVENAAN)
+ * STRIPE WEBHOOK (MOET ALS EERSTE)
  ************************************/
 app.post(
   "/webhook/stripe",
@@ -54,11 +52,11 @@ app.post(
       );
     } catch (err) {
       console.error("❌ Stripe signature verification failed:", err.message);
-      return res.status(403).send("Invalid Stripe signature");
+      return res.status(400).send("Invalid signature");
     }
 
     if (event.type !== "checkout.session.completed") {
-      return res.status(200).json({ ignored: true });
+      return res.json({ ignored: true });
     }
 
     const session = event.data.object;
@@ -66,8 +64,8 @@ app.post(
     const customerEmail = session.customer_details?.email;
 
     if (!planId) {
-      console.error("❌ No plan_id in metadata");
-      return res.status(200).json({ error: "Missing plan_id" });
+      console.error("❌ Missing plan_id");
+      return res.status(400).json({ error: "Missing plan_id" });
     }
 
     console.log("✅ Stripe webhook received:", planId);
@@ -107,40 +105,22 @@ app.post(
         console.log(`📧 Email sent to ${customerEmail}`);
       }
 
-      return res.status(200).json({ success: true });
+      res.json({ success: true });
     } catch (err) {
-      console.error("❌ Webhook error:", err);
-      return res.status(500).json({ error: "Internal server error" });
+      console.error("❌ Webhook processing error:", err);
+      res.status(500).json({ error: "Webhook failed" });
     }
   }
 );
 
 /************************************
- * CORS & PRE-FLIGHT (KRITISCH)
- ************************************/
-const corsOptions = {
-  origin: "https://runiq.run",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "x-api-key"]
-};
-
-// 👉 PRE-FLIGHT MOET VOOR API-KEY MIDDLEWARE
-app.options("*", cors(corsOptions));
-app.use(cors(corsOptions));
-
-/************************************
- * JSON MIDDLEWARE
- ************************************/
-app.use(express.json());
-
-/************************************
- * API KEY MIDDLEWARE
+ * CORS + JSON (NA WEBHOOK)
  ************************************/
 app.use(cors({
   origin: "https://runiq.run"
 }));
-app.use(express.json());
 
+app.use(express.json());
 
 /************************************
  * STATIC FILES
@@ -155,7 +135,7 @@ app.get("/", (req, res) => {
 });
 
 /**
- * START STRIPE CHECKOUT
+ * START STRIPE CHECKOUT (PUBLIEK)
  */
 app.post("/create-checkout-session", async (req, res) => {
   try {
@@ -168,7 +148,6 @@ app.post("/create-checkout-session", async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
@@ -183,15 +162,13 @@ app.post("/create-checkout-session", async (req, res) => {
       ],
       success_url: "https://runiq.run/success",
       cancel_url: "https://runiq.run",
-      metadata: {
-        plan_id: planId
-      }
+      metadata: { plan_id: planId }
     });
 
     res.json({ checkoutUrl: session.url });
   } catch (err) {
     console.error("❌ Checkout error:", err);
-    res.status(500).json({ error: "Unable to create checkout session" });
+    res.status(500).json({ error: "Checkout failed" });
   }
 });
 
