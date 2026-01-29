@@ -42,6 +42,14 @@ app.post(
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
 
+console.log('==============================');
+console.log('SESSION KEYS:', Object.keys(session));
+console.log('SESSION METADATA:', session.metadata);
+console.log('CUSTOMER DETAILS:', session.customer_details);
+console.log('PAYMENT INTENT:', session.payment_intent);
+console.log('==============================');
+
+
       // 🔍 Debug (tijdelijk, mag je later verwijderen)
       console.log('🔍 Volledige session object:');
       console.log(JSON.stringify(session, null, 2));
