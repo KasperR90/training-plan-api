@@ -7,12 +7,12 @@ const Stripe = require("stripe");
 
 console.log(">>> core modules loaded");
 
-// Internal logic
+// ===============================
+// Interne logica (bestond al)
+// ===============================
 const { getMonday } = require("./engine/dates");
 const { buildPlan } = require("./engine/plan");
 const { renderHtml } = require("./renderHtml");
-
-// PDF generator
 const generatePdf = require("./generatePdf");
 
 console.log(">>> internal modules loaded");
@@ -24,14 +24,13 @@ const API_KEY = process.env.API_KEY || "local-dev-key";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const OUTPUT_DIR = path.join(__dirname, "output");
 
-
 // ===================================================
 // ✅ STRIPE WEBHOOK — MOET HELEMAAL BOVENAAN
 // ===================================================
 app.post(
   "/webhook/stripe",
   express.raw({ type: "*/*" }),
-  (req, res) => {
+  async (req, res) => {
     const sig = req.headers["stripe-signature"];
     let event;
 
@@ -46,12 +45,55 @@ app.post(
       return res.status(403).send("Invalid Stripe signature");
     }
 
+    // Alleen afronden checkout verwerken
     if (event.type !== "checkout.session.completed") {
       return res.status(200).json({ ignored: true });
     }
 
     console.log("✅ Stripe webhook received:", event.type);
-    return res.status(200).json({ success: true });
+
+    try {
+      const session = event.data.object;
+      const metadata = session.metadata || {};
+
+      console.log("📦 Metadata:", metadata);
+
+      // ===============================
+      // Trainingsschema bouwen
+      // ===============================
+      const startMonday = getMonday(new Date());
+
+      const plan = buildPlan({
+        startMonday,
+        numberOfWeeks: parseInt(metadata.weeks, 10),
+        sessionsPerWeek: parseInt(metadata.sessions, 10),
+        startWeekVolume: 30,        // tijdelijk vaste waarde
+        weeklyIncrease: 10,         // tijdelijk vaste waarde
+        referenceDistance: metadata.distance,
+        referenceTime: metadata.goal_time
+      });
+
+      // ===============================
+      // HTML → PDF
+      // ===============================
+      const html = renderHtml(plan);
+
+      if (!fs.existsSync(OUTPUT_DIR)) {
+        fs.mkdirSync(OUTPUT_DIR);
+      }
+
+      const filename = `training_plan_${session.id}.pdf`;
+      const outputPath = path.join(OUTPUT_DIR, filename);
+
+      await generatePdf(html, outputPath);
+
+      console.log("📄 PDF generated:", outputPath);
+
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("❌ Error during PDF generation:", err);
+      return res.status(500).json({ error: "PDF generation failed" });
+    }
   }
 );
 
@@ -80,63 +122,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// ===================================================
+// Static downloads (PDF’s)
+// ===================================================
 app.use("/downloads", express.static(OUTPUT_DIR));
 
 // ===================================================
-// ROUTES
+// Health check
 // ===================================================
 app.get("/", (req, res) => {
   res.send("Training plan API is running");
-});
-
-app.post("/generate-plan", async (req, res) => {
-  console.log(">>> /generate-plan called");
-
-  try {
-    const {
-      raceDate,
-      referenceDistance,
-      referenceTime,
-      sessionsPerWeek,
-      startWeekVolume,
-      weeklyIncrease,
-      numberOfWeeks
-    } = req.body;
-
-    const startMonday = getMonday(raceDate);
-
-    const plan = buildPlan({
-      startMonday,
-      numberOfWeeks,
-      sessionsPerWeek,
-      startWeekVolume,
-      weeklyIncrease,
-      referenceDistance,
-      referenceTime
-    });
-
-    const html = renderHtml(plan, raceDate);
-
-    if (!fs.existsSync(OUTPUT_DIR)) {
-      fs.mkdirSync(OUTPUT_DIR);
-    }
-
-    const filename = `training_plan_${Date.now()}.pdf`;
-    const outputPath = path.join(OUTPUT_DIR, filename);
-
-    await generatePdf(html, outputPath);
-
-    res.json({
-      status: "ok",
-      pdfUrl: `${req.protocol}://${req.get("host")}/downloads/${filename}`
-    });
-  } catch (err) {
-    console.error(">>> ERROR in /generate-plan:", err);
-    res.status(500).json({
-      error: "PDF generation failed",
-      details: err.message
-    });
-  }
 });
 
 // ===================================================
