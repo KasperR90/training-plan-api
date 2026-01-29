@@ -101,8 +101,9 @@ app.post(
 
       // 4️⃣ (later) mail versturen
       if (customerEmail) {
-        console.log(`📧 Ready to send email to ${customerEmail}`);
-      }
+  	await sendPlanEmail(customerEmail, pdfUrl);
+  	console.log(`📧 Email sent to ${customerEmail}`);
+	}
 
       return res.status(200).json({ success: true });
     } catch (err) {
@@ -215,3 +216,35 @@ function loadPlanData(planId) {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 RUNIQ API listening on port ${PORT}`);
 });
+
+
+/************************************
+ * MAIL HELPER
+ ************************************/
+
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+async function sendPlanEmail(to, pdfUrl) {
+  const msg = {
+    to,
+    from: process.env.SENDER_EMAIL,
+    subject: "Your RUNIQ training plan is ready 🏃‍♂️",
+    html: `
+      <h2>Your personalized training plan is ready</h2>
+      <p>Thanks for using <strong>RUNIQ</strong>.</p>
+      <p>You can download your training plan here:</p>
+      <p>
+        <a href="${pdfUrl}" target="_blank">
+          👉 Download your training plan (PDF)
+        </a>
+      </p>
+      <p>Train smarter. Automatically.</p>
+      <br/>
+      <p>— RUNIQ</p>
+    `
+  };
+
+  await sgMail.send(msg);
+}
+
