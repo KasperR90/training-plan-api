@@ -9,6 +9,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const Stripe = require("stripe");
+const cors = require("cors");
 
 // Engine & rendering
 const { getMonday } = require("./engine/dates");
@@ -116,6 +117,7 @@ app.post(
 /************************************
  * JSON MIDDLEWARE (NA WEBHOOK)
  ************************************/
+app.use(cors());
 app.use(express.json());
 
 /************************************
