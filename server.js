@@ -28,10 +28,10 @@ const OUTPUT_DIR = path.join(__dirname, "output");
 // ✅ STRIPE WEBHOOK — MOET HELEMAAL BOVENAAN
 // ===================================================
 app.post(
-  "/webhook/stripe",
-  express.raw({ type: "*/*" }),
+  '/webhook/stripe',
+  express.raw({ type: 'application/json' }),
   async (req, res) => {
-    const sig = req.headers["stripe-signature"];
+    const sig = req.headers['stripe-signature'];
     let event;
 
     try {
@@ -41,22 +41,51 @@ app.post(
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error("❌ Stripe signature error:", err.message);
-      return res.status(403).send("Invalid Stripe signature");
+      console.error('❌ Webhook signature verification failed:', err.message);
+      return res.status(400).send('Webhook Error');
     }
 
-    // Alleen checkout afrondingen verwerken
-    if (event.type !== "checkout.session.completed") {
-      return res.status(200).json({ ignored: true });
+    if (event.type !== 'checkout.session.completed') {
+      return res.json({ received: true });
     }
 
-    console.log("✅ Stripe webhook received:", event.type);
+    console.log('✅ Stripe webhook received:', event.type);
 
     try {
       const session = event.data.object;
       const metadata = session.metadata || {};
 
-      console.log("📦 Metadata:", metadata);
+      console.log('📦 Metadata:', metadata);
+
+      // 1️⃣ Trainingsschema genereren
+      const trainingPlan = generateTrainingPlan({
+        distance: metadata.distance,
+        goal_time: metadata.goal_time,
+        weeks: Number(metadata.weeks),
+        sessions: Number(metadata.sessions)
+      });
+
+      // 2️⃣ HTML renderen
+      const html = renderHtml(trainingPlan);
+
+      // 3️⃣ PDF genereren
+      const filename = `training_plan_${Date.now()}.pdf`;
+      const outputPath = path.join(OUTPUT_DIR, filename);
+
+      await generatePdf(html, outputPath);
+
+      console.log('📄 PDF generated:', outputPath);
+
+      // (mailen doen we in stap C3)
+
+    } catch (err) {
+      console.error('❌ Error during PDF generation:', err);
+    }
+
+    res.json({ received: true });
+  }
+);
+
 
       // ===============================
       // Trainingsschema bouwen
