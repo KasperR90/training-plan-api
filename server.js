@@ -60,15 +60,34 @@ app.post(
 
       console.log('📦 Metadata:', metadata);
 
+// ================================
+// Afstand normaliseren
+// ================================
+function normalizeDistance(distance) {
+  const map = {
+    '5k': 5,
+    '10k': 10,
+    '15k': 15,
+    'half': 21.1,
+    'marathon': 42.2
+  };
+
+  if (!map[distance]) {
+    throw new Error(`Onbekende referentieafstand: ${distance}`);
+  }
+
+  return map[distance];
+}
+
       // ================================
       // 1️⃣ Trainingsschema genereren
       // ================================
       const trainingPlan = generateTrainingPlan({
-        distance: metadata.distance,
-        goal_time: metadata.goal_time,
-        weeks: Number(metadata.weeks),
-        sessions: Number(metadata.sessions)
-      });
+  distance: normalizeDistance(metadata.distance),
+  goal_time: metadata.goal_time,
+  weeks: Number(metadata.weeks),
+  sessions: Number(metadata.sessions)
+});
 
       // ================================
       // 2️⃣ HTML renderen
