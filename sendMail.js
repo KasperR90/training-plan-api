@@ -8,7 +8,10 @@ async function sendTrainingPlanMail({ to, pdfPath }) {
 
   const msg = {
     to,
-    from: process.env.MAIL_FROM,
+    from: {
+      email: process.env.MAIL_FROM,
+      name: 'RUNIQ'
+    },
     subject: 'Jouw persoonlijke RUNIQ trainingsschema',
     text: `
 Hi!
@@ -30,11 +33,14 @@ RUNIQ
   };
 
   try {
-  await sgMail.send(msg);
-} catch (err) {
-  console.error('❌ SendGrid error:', JSON.stringify(err.response.body, null, 2));
-  throw err;
-}
+    await sgMail.send(msg);
+  } catch (err) {
+    console.error(
+      '❌ SendGrid error:',
+      JSON.stringify(err.response?.body, null, 2)
+    );
+    throw err;
+  }
 }
 
 module.exports = { sendTrainingPlanMail };
