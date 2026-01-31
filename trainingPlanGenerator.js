@@ -1,4 +1,4 @@
-export function generateTrainingPlan(metadata) {
+function generateTrainingPlan(metadata) {
   const weeks = parseInt(metadata.weeks, 10);
   const sessionsPerWeek = parseInt(metadata.sessions, 10);
 
@@ -33,6 +33,9 @@ export function generateTrainingPlan(metadata) {
   };
 }
 
+// ================================
+// Helpers
+// ================================
 function getSessionType(sessionIndex, totalSessions) {
   if (sessionIndex === totalSessions) return 'long run';
   if (sessionIndex === 1) return 'easy';
@@ -51,3 +54,8 @@ function getIntensity(currentWeek, totalWeeks) {
   if (currentWeek < totalWeeks * 0.7) return 'moderate';
   return 'high';
 }
+
+// ✅ CommonJS export
+module.exports = {
+  generateTrainingPlan
+};
