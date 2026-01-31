@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const Stripe = require('stripe');
+const { sendTrainingPlanMail } = require('./sendMail');
 
 // ================================
 // Interne modules
@@ -103,6 +104,13 @@ function normalizeDistance(distance) {
       await generatePdf(html, outputPath);
 
       console.log('📄 PDF generated:', outputPath);
+
+      await sendTrainingPlanMail({
+      to: metadata.email,
+      pdfPath: outputPath
+   });
+
+console.log('✉️ Mail sent to:', metadata.email);
 
       // (Mailen doen we in C3)
 
