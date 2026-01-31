@@ -29,7 +29,12 @@ RUNIQ
     ]
   };
 
+  try {
   await sgMail.send(msg);
+} catch (err) {
+  console.error('❌ SendGrid error:', JSON.stringify(err.response.body, null, 2));
+  throw err;
+}
 }
 
 module.exports = { sendTrainingPlanMail };
