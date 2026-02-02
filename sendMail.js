@@ -39,7 +39,7 @@ async function sendTrainingPlanMail({ to, pdfPath }) {
   const msg = {
     to,
     from: {
-      email: MAIL_FROM,
+      email: 'info@runiq.run',
       name: 'RUNIQ',
     },
     subject: 'Jouw persoonlijke RUNIQ trainingsschema',
