@@ -1,61 +1,83 @@
-function generateTrainingPlan(metadata) {
-  const weeks = parseInt(metadata.weeks, 10);
-  const sessionsPerWeek = parseInt(metadata.sessions, 10);
+function generateTrainingPlan({
+  distanceKey,
+  distanceLabel,
+  distanceMeters,
+  goalTime,
+  weeks,
+  sessionsPerWeek,
+}) {
+  if (!distanceKey || !distanceLabel || !distanceMeters) {
+    throw new Error('Distance information is incomplete');
+  }
 
-  const plan = [];
+  if (!weeks || !sessionsPerWeek) {
+    throw new Error('Weeks and sessionsPerWeek are required');
+  }
+
+  const weeksPlan = [];
 
   for (let week = 1; week <= weeks; week++) {
-    const weekPlan = {
-      week,
-      sessions: []
-    };
+    const sessions = [];
 
     for (let s = 1; s <= sessionsPerWeek; s++) {
-      weekPlan.sessions.push({
+      sessions.push({
         name: `Training ${s}`,
         type: getSessionType(s, sessionsPerWeek),
-        duration: getSessionDuration(week, weeks),
-        intensity: getIntensity(week, weeks)
+        duration: getSessionDuration(distanceKey, week, weeks),
+        intensity: getIntensity(week, weeks),
       });
     }
 
-    plan.push(weekPlan);
+    weeksPlan.push({
+      week,
+      sessions,
+    });
   }
 
   return {
     meta: {
-      distance: metadata.distance,
-      goal_time: metadata.goal_time,
+      distanceKey,
+      distanceLabel,
+      distanceMeters,
+      goalTime,
       weeks,
-      sessions_per_week: sessionsPerWeek
+      sessionsPerWeek,
     },
-    weeks: plan
+    weeks: weeksPlan,
   };
 }
 
 // ================================
 // Helpers
 // ================================
-function getSessionType(sessionIndex, totalSessions) {
-  if (sessionIndex === totalSessions) return 'long run';
-  if (sessionIndex === 1) return 'easy';
-  if (sessionIndex === 2) return 'tempo';
-  return 'interval';
+function getSessionType(index, total) {
+  if (index === total) return 'Long run';
+  if (index === 1) return 'Easy';
+  if (index === 2) return 'Tempo';
+  return 'Intervals';
 }
 
-function getSessionDuration(currentWeek, totalWeeks) {
-  const base = 30;
-  const progression = Math.round((currentWeek / totalWeeks) * 60);
-  return base + progression; // minuten
+function getSessionDuration(distanceKey, currentWeek, totalWeeks) {
+  const BASES = {
+    '5k': 25,
+    '10k': 30,
+    'half': 40,
+    'marathon': 50,
+  };
+
+  const base = BASES[distanceKey];
+  if (!base) throw new Error(`No base duration for ${distanceKey}`);
+
+  const progression = Math.round((currentWeek / totalWeeks) * base);
+  return base + progression;
 }
 
 function getIntensity(currentWeek, totalWeeks) {
-  if (currentWeek < totalWeeks * 0.3) return 'low';
-  if (currentWeek < totalWeeks * 0.7) return 'moderate';
-  return 'high';
+  if (currentWeek < totalWeeks * 0.3) return 'Low';
+  if (currentWeek < totalWeeks * 0.7) return 'Moderate';
+  return 'High';
 }
 
-// ✅ CommonJS export
 module.exports = {
-  generateTrainingPlan
+  generateTrainingPlan,
 };
