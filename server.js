@@ -1,127 +1,124 @@
-console.log('>>> server.js starting');
+// server.js
+require('dotenv').config();
 
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
+const bodyParser = require('body-parser');
 const Stripe = require('stripe');
+const path = require('path');
 
-const { sendTrainingPlanMail } = require('./sendMail');
 const { generateTrainingPlan } = require('./trainingPlanGenerator');
-const { renderHtml } = require('./renderHtml');
-const generatePdf = require('./generatePdf');
+const { generatePdf } = require('./generatePdf');
+const { sendTrainingPlanMail } = require('./sendMail');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const OUTPUT_DIR = path.join(__dirname, 'output');
+// =====================================================
+// Middleware
+// =====================================================
 
-if (!fs.existsSync(OUTPUT_DIR)) {
-  fs.mkdirSync(OUTPUT_DIR);
-}
-
-/**
- * Centrale afstandsdefinitie (ENIGE waarheid)
- */
-const DISTANCES = {
-  '5k': {
-    key: '5k',
-    label: '5 kilometer',
-    meters: 5000,
-  },
-  '10k': {
-    key: '10k',
-    label: '10 kilometer',
-    meters: 10000,
-  },
-  'half': {
-    key: 'half',
-    label: 'Halve marathon',
-    meters: 21097,
-  },
-  'marathon': {
-    key: 'marathon',
-    label: 'Marathon',
-    meters: 42195,
-  },
-};
-
-// ================================
-// STRIPE WEBHOOK
-// ================================
+// Stripe webhook requires raw body
 app.post(
   '/webhook/stripe',
-  express.raw({ type: 'application/json' }),
+  bodyParser.raw({ type: 'application/json' }),
   async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+
     let event;
 
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
-        req.headers['stripe-signature'],
+        sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error('❌ Stripe signature verification failed:', err.message);
-      return res.status(400).send('Webhook Error');
+      console.error('❌ Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    if (event.type !== 'checkout.session.completed') {
-      return res.json({ received: true });
-    }
-
-    try {
+    // =================================================
+    // Handle successful checkout
+    // =================================================
+    if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const metadata = session.metadata || {};
 
-      console.log('📦 Metadata:', metadata);
+      try {
+        console.log('✅ Stripe checkout completed');
+        console.log('📦 Metadata:', metadata);
 
-      const distanceConfig = DISTANCES[metadata.distance];
-      if (!distanceConfig) {
-        throw new Error(`Unsupported distance: ${metadata.distance}`);
+        // ---------------------------------------------
+        // Normalize distance
+        // ---------------------------------------------
+        const DISTANCE_MAP = {
+          '5k': '5k',
+          '10k': '10k',
+          'half': 'half',
+          'marathon': 'marathon',
+        };
+
+        const distanceKey = DISTANCE_MAP[metadata.distance];
+
+        if (!distanceKey) {
+          throw new Error(`Unsupported distance: ${metadata.distance}`);
+        }
+
+        // ---------------------------------------------
+        // 1️⃣ Generate training plan
+        // ---------------------------------------------
+        const trainingPlan = generateTrainingPlan({
+          distance: distanceKey,
+          goalTime: metadata.goal_time,
+          weeks: Number(metadata.weeks),
+          sessionsPerWeek: Number(metadata.sessions),
+        });
+
+        console.log('📊 Training plan generated');
+
+        // ---------------------------------------------
+        // 2️⃣ Generate PDF
+        // ---------------------------------------------
+        const { filePath, fileName } = await generatePdf(trainingPlan);
+
+        console.log('📄 PDF generated:', filePath);
+
+        // ---------------------------------------------
+        // 3️⃣ Send email
+        // ---------------------------------------------
+        await sendTrainingPlanMail({
+          to: metadata.email,
+          pdfPath: filePath,
+          pdfFileName: fileName,
+          distanceLabel: trainingPlan.meta.distanceLabel,
+        });
+
+        console.log('✉️ Email sent to:', metadata.email);
+
+        res.status(200).json({ received: true });
+      } catch (err) {
+        console.error('❌ Error processing checkout:', err);
+        res.status(500).json({ error: err.message });
       }
-
-      // 1️⃣ Trainingsschema genereren
-      const trainingPlan = generateTrainingPlan({
-        distanceKey: distanceConfig.key,
-        distanceLabel: distanceConfig.label,
-        distanceMeters: distanceConfig.meters,
-        goalTime: metadata.goal_time,
-        weeks: Number(metadata.weeks),
-        sessionsPerWeek: Number(metadata.sessions),
-      });
-
-      // 2️⃣ HTML renderen
-      const html = renderHtml(trainingPlan);
-
-      // 3️⃣ PDF genereren
-      const filename = `training_plan_${Date.now()}.pdf`;
-      const outputPath = path.join(OUTPUT_DIR, filename);
-
-      await generatePdf(html, outputPath);
-      console.log('📄 PDF generated:', outputPath);
-
-      // 4️⃣ Mailen
-      await sendTrainingPlanMail({
-        to: metadata.email,
-        pdfPath: outputPath,
-      });
-
-      console.log('✉️ Mail sent to:', metadata.email);
-    } catch (err) {
-      console.error('❌ Error in webhook flow:', err);
+    } else {
+      // Other events we do not process
+      res.status(200).json({ received: true });
     }
-
-    res.json({ received: true });
   }
 );
 
-app.use(express.json());
-
+// =====================================================
+// Health check (optional but recommended)
+// =====================================================
 app.get('/', (req, res) => {
-  res.send('RUNIQ Training Plan API is running');
+  res.send('RUNIQ training plan API is running');
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// =====================================================
+// Start server
+// =====================================================
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
 });
