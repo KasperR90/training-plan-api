@@ -1,179 +1,145 @@
-/**
- * Training plan generator – volume, tempo, periodisering
- */
+// trainingPlanGenerator.js
 
 function generateTrainingPlan({
-  distanceKey,
-  distanceLabel,
-  distanceMeters,
-  goalTime, // bv "1:45:00"
+  distance,        // '5k' | '10k' | 'half' | 'marathon'
   weeks,
   sessionsPerWeek,
+  goalTime,
 }) {
-  if (!distanceKey || !weeks || !sessionsPerWeek) {
-    throw new Error('Missing required training plan parameters');
-  }
-
-  const racePace = calculateRacePace(goalTime, distanceMeters); // min/km
-  const baseWeeklyVolume = getBaseWeeklyVolume(distanceKey);
-
-  const weeksPlan = [];
-
-  for (let week = 1; week <= weeks; week++) {
-    const phase = getPhase(week, weeks);
-    const volumeFactor = getVolumeFactor(week, weeks, phase);
-
-    const weeklyKm = round(
-      baseWeeklyVolume * volumeFactor * progressionFactor(week, weeks)
-    );
-
-    const sessions = buildSessions({
-      distanceKey,
-      sessionsPerWeek,
-      weeklyKm,
-      racePace,
-      phase,
-    });
-
-    weeksPlan.push({
-      week,
-      phase,
-      total_km: sumKm(sessions),
-      sessions,
-    });
-  }
-
-  return {
-    meta: {
-      distanceKey,
-      distanceLabel,
-      distanceMeters,
-      goalTime,
-      weeks,
-      sessionsPerWeek,
-    },
-    weeks: weeksPlan,
-  };
-}
-
-/* ================================
-   Session builder
-================================ */
-
-function buildSessions({
-  distanceKey,
-  sessionsPerWeek,
-  weeklyKm,
-  racePace,
-  phase,
-}) {
-  const types = getSessionTypes(distanceKey, sessionsPerWeek);
-
-  const distribution = {
-    easy: 0.45,
-    tempo: 0.25,
-    interval: 0.15,
-    long: 0.15,
+  const DISTANCE_LABELS = {
+    '5k': '5K',
+    '10k': '10K',
+    'half': 'Half Marathon',
+    'marathon': 'Marathon',
   };
 
-  if (phase === 'recovery') {
-    distribution.tempo -= 0.1;
-    distribution.interval -= 0.05;
-    distribution.easy += 0.15;
-  }
-
-  if (phase === 'taper') {
-    distribution.long -= 0.1;
-    distribution.easy += 0.1;
-  }
-
-  return types.map((type) => {
-    const km = round(weeklyKm * (distribution[type] || 0.2));
-    return {
-      type,
-      distance_km: km,
-      pace: getPaceForType(type, racePace),
-    };
-  });
-}
-
-/* ================================
-   Helpers
-================================ */
-
-function calculateRacePace(goalTime, meters) {
-  if (!goalTime) return null;
-  const seconds = parseTimeToSeconds(goalTime);
-  const km = meters / 1000;
-  return seconds / 60 / km;
-}
-
-function getPaceForType(type, racePace) {
-  if (!racePace) return null;
-
-  const offsets = {
-    easy: [45, 75],
-    long: [30, 60],
-    tempo: [10, 20],
-    interval: [-20, -10],
-  };
-
-  const [min, max] = offsets[type];
-  return {
-    min: formatPace(racePace + min / 60),
-    max: formatPace(racePace + max / 60),
-  };
-}
-
-function getSessionTypes(distanceKey, sessionsPerWeek) {
-  const base = ['easy', 'tempo', 'interval', 'long'];
-  return base.slice(0, sessionsPerWeek);
-}
-
-function getPhase(week, totalWeeks) {
-  if (week >= totalWeeks - 1) return 'taper';
-  if (week % 4 === 0) return 'recovery';
-  return 'build';
-}
-
-function getVolumeFactor(week, totalWeeks, phase) {
-  if (phase === 'recovery') return 0.75;
-  if (phase === 'taper') return week === totalWeeks ? 0.5 : 0.7;
-  return 1;
-}
-
-function progressionFactor(week, totalWeeks) {
-  return 0.7 + (week / totalWeeks) * 0.3;
-}
-
-function getBaseWeeklyVolume(distanceKey) {
-  return {
+  const BASE_WEEKLY_KM = {
     '5k': 25,
     '10k': 35,
     'half': 45,
     'marathon': 55,
-  }[distanceKey];
+  };
+
+  const plan = {
+    meta: {
+      distanceKey: distance,
+      distanceLabel: DISTANCE_LABELS[distance],
+      weeks,
+      sessionsPerWeek,
+      goalTime,
+    },
+    weeks: [],
+  };
+
+  for (let week = 1; week <= weeks; week++) {
+    const isRecoveryWeek = week % 4 === 0;
+    const isTaperWeek = week >= weeks - 1;
+    const isRaceWeek = week === weeks;
+
+    let phase = 'build';
+    if (isTaperWeek) phase = 'taper';
+    else if (isRecoveryWeek) phase = 'recovery';
+
+    let volumeFactor = 1;
+    if (phase === 'recovery') volumeFactor = 0.75;
+    if (phase === 'taper') volumeFactor = isRaceWeek ? 0.4 : 0.6;
+
+    const baseKm = BASE_WEEKLY_KM[distance];
+    const progression = 1 + week * 0.03;
+    const totalKm = Math.round(baseKm * progression * volumeFactor);
+
+    const sessions = generateSessions({
+      sessionsPerWeek,
+      totalKm,
+      phase,
+      isRaceWeek,
+      distance,
+    });
+
+    plan.weeks.push({
+      week,
+      phase,
+      total_km: totalKm,
+      isRaceWeek,
+      sessions,
+    });
+  }
+
+  return plan;
 }
 
-function parseTimeToSeconds(time) {
-  const parts = time.split(':').map(Number);
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  return null;
+/* =========================
+   Sessions
+========================= */
+function generateSessions({
+  sessionsPerWeek,
+  totalKm,
+  phase,
+  isRaceWeek,
+  distance,
+}) {
+  const sessions = [];
+  const longRunKm = Math.round(totalKm * 0.35);
+  const remainingKm = totalKm - longRunKm;
+  const baseKm = Math.round(remainingKm / (sessionsPerWeek - 1));
+
+  for (let i = 1; i <= sessionsPerWeek; i++) {
+    // Race day
+    if (isRaceWeek && i === sessionsPerWeek) {
+      sessions.push({
+        type: 'race',
+        distance_km: raceDistanceKm(distance),
+        description: 'Race day. Execute your plan and trust your training.',
+      });
+      continue;
+    }
+
+    if (i === sessionsPerWeek) {
+      sessions.push({
+        type: 'long',
+        distance_km: longRunKm,
+        description: longRunDescription(phase),
+      });
+    } else if (phase === 'build' && i === 2) {
+      sessions.push({
+        type: 'tempo',
+        distance_km: baseKm,
+        description: 'Controlled sustained effort.',
+      });
+    } else if (phase === 'build' && i === 3) {
+      sessions.push({
+        type: 'interval',
+        distance_km: baseKm,
+        description: 'Shorter repetitions with full recovery.',
+      });
+    } else {
+      sessions.push({
+        type: 'easy',
+        distance_km: baseKm,
+        description: 'Relaxed, conversational effort.',
+      });
+    }
+  }
+
+  return sessions;
 }
 
-function formatPace(minPerKm) {
-  const min = Math.floor(minPerKm);
-  const sec = Math.round((minPerKm - min) * 60);
-  return `${min}:${sec.toString().padStart(2, '0')}/km`;
+/* =========================
+   Helpers
+========================= */
+function raceDistanceKm(distance) {
+  return {
+    '5k': 5,
+    '10k': 10,
+    'half': 21.1,
+    'marathon': 42.2,
+  }[distance];
 }
 
-function sumKm(sessions) {
-  return round(sessions.reduce((sum, s) => sum + s.distance_km, 0));
-}
-
-function round(n) {
-  return Math.round(n * 10) / 10;
+function longRunDescription(phase) {
+  if (phase === 'taper') return 'Reduced long run to stay fresh.';
+  if (phase === 'recovery') return 'Comfortable long run with reduced volume.';
+  return 'Steady aerobic long run.';
 }
 
 module.exports = {
