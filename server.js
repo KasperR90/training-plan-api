@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
+const fs = require('fs');
 
 const generateTrainingPlan = require('./trainingPlanGenerator');
 const generatePdf = require('./generatePdf');
@@ -33,6 +34,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /**
  * ======================
+ * IDEMPOTENCY MEMORY STORE
+ * (Prevents duplicate email sends)
+ * ======================
+ */
+const processedSessions = new Set();
+
+/**
+ * ======================
  * MIDDLEWARE
  * ======================
  */
@@ -53,9 +62,8 @@ app.use(
 app.post(
   '/webhook/stripe',
   express.raw({ type: 'application/json' }),
-  async (req, res) => {
+  (req, res) => {
     const sig = req.headers['stripe-signature'];
-
     let event;
 
     try {
@@ -73,45 +81,85 @@ app.post(
       const session = event.data.object;
 
       console.log('✅ Checkout completed:', session.id);
-      console.log('📦 Metadata:', session.metadata);
 
-      try {
-        const email = session.metadata.email;
-        const distance = session.metadata.distance;
-        const goal_time = session.metadata.goal_time;
-        const weeks = Number(session.metadata.weeks);
-        const sessions = Number(session.metadata.sessions);
-
-        // 1️⃣ Generate training plan
-       const plan = generateTrainingPlan({
-	distance,
-  	goalTime: goal_time,
-  	weeks,
-  	sessionsPerWeek: sessions,
-	});
-
-        // 2️⃣ Generate PDF
-        const pdfResult = await generatePdf(plan);
-
-        // 3️⃣ Send email
-        await sendTrainingPlanMail({
-  	to: email,
-  	pdfPath: pdfResult.filePath,
-  	pdfFileName: pdfResult.fileName,
-  	distanceLabel: plan.meta.distanceLabel,
-	});
-
-
-        console.log('📧 Email successfully sent to:', email);
-
-      } catch (err) {
-        console.error('❌ PDF or Mail error:', err);
+      // Prevent duplicate processing
+      if (processedSessions.has(session.id)) {
+        console.log('⚠️ Session already processed:', session.id);
+        return res.json({ received: true });
       }
+
+      processedSessions.add(session.id);
+
+      // Return 200 immediately to Stripe
+      res.json({ received: true });
+
+      // Process in background
+      processCheckout(session);
+      return;
     }
 
     res.json({ received: true });
   }
 );
+
+/**
+ * ======================
+ * BACKGROUND PROCESSING
+ * ======================
+ */
+async function processCheckout(session) {
+  try {
+    console.log('⚙️ Starting background processing:', session.id);
+
+    const email = session.metadata.email;
+    const distance = session.metadata.distance;
+    const goal_time = session.metadata.goal_time;
+    const weeks = Number(session.metadata.weeks);
+    const sessions = Number(session.metadata.sessions);
+
+    if (!email || !distance || !goal_time || !weeks || !sessions) {
+      throw new Error('Missing metadata fields');
+    }
+
+    // 1️⃣ Generate training plan
+    const plan = generateTrainingPlan({
+      distance,
+      goalTime: goal_time,
+      weeks,
+      sessionsPerWeek: sessions,
+    });
+
+    console.log('📊 Training plan generated');
+
+    // 2️⃣ Generate PDF
+    const pdfResult = await generatePdf(plan);
+    console.log('📄 PDF generated:', pdfResult.fileName);
+
+    // 3️⃣ Send email
+    await sendTrainingPlanMail({
+      to: email,
+      pdfPath: pdfResult.filePath,
+      pdfFileName: pdfResult.fileName,
+      distanceLabel: plan.meta.distanceLabel,
+    });
+
+    console.log('📧 Email successfully sent to:', email);
+
+    // 4️⃣ Cleanup PDF file
+    fs.unlink(pdfResult.filePath, (err) => {
+      if (err) {
+        console.error('⚠️ Failed to delete PDF:', err.message);
+      } else {
+        console.log('🧹 PDF cleaned up');
+      }
+    });
+
+    console.log('🎉 Order fully processed:', session.id);
+
+  } catch (err) {
+    console.error('❌ Background processing error:', err);
+  }
+}
 
 /**
  * ======================
@@ -128,19 +176,15 @@ app.use(express.json());
  */
 app.post('/checkout', async (req, res) => {
   console.log('➡️ /checkout called');
-  console.log('📦 Body:', req.body);
 
   try {
     const { email, distance, goal_time, weeks, sessions } = req.body;
 
     if (!email || !distance || !goal_time || !weeks || !sessions) {
-      console.error('❌ Missing parameters');
       return res.status(400).json({
         error: 'Missing required training plan parameters',
       });
     }
-
-    console.log('💳 Creating Stripe Checkout session…');
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -163,20 +207,12 @@ app.post('/checkout', async (req, res) => {
       },
     });
 
-    console.log('✅ Stripe session created:', session.id);
+    console.log('💳 Stripe session created:', session.id);
 
     res.json({ url: session.url });
 
   } catch (err) {
-    console.error('❌ CHECKOUT ERROR');
-    console.error(err);
-
-    if (err.type === 'StripeInvalidRequestError') {
-      return res.status(500).json({
-        error: 'Stripe configuration error',
-        details: err.message,
-      });
-    }
+    console.error('❌ CHECKOUT ERROR:', err);
 
     res.status(500).json({
       error: 'Internal server error',
