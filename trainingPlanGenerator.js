@@ -142,6 +142,4 @@ function longRunDescription(phase) {
   return 'Steady aerobic long run.';
 }
 
-module.exports = {
-  generateTrainingPlan,
-};
+module.exports = generateTrainingPlan;
