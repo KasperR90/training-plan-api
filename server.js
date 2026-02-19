@@ -39,7 +39,46 @@ app.use(
   })
 );
 
+/**
+ * ======================
+ * STRIPE WEBHOOK
+ * (MUST COME BEFORE express.json())
+ * ======================
+ */
+app.post(
+  '/webhook/stripe',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    const sig = req.headers['stripe-signature'];
 
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error('❌ Webhook signature error:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      console.log('✅ Checkout completed:', event.data.object.id);
+      // PDF + mail flow komt hier
+    }
+
+    res.json({ received: true });
+  }
+);
+
+/**
+ * ======================
+ * JSON PARSER
+ * (AFTER WEBHOOK!)
+ * ======================
+ */
+app.use(express.json());
 
 /**
  * ======================
@@ -104,41 +143,6 @@ app.post('/checkout', async (req, res) => {
     });
   }
 });
-
-/**
- * ======================
- * STRIPE WEBHOOK
- * ======================
- */
-app.post(
-  '/webhook/stripe',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    const sig = req.headers['stripe-signature'];
-
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error('❌ Webhook signature error:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      console.log('✅ Checkout completed:', event.data.object.id);
-      // PDF + mail flow komt hier
-    }
-
-    res.json({ received: true });
-  }
-);
-
-// JSON parser for normal routes (after webhook!)
-app.use(express.json());
 
 /**
  * ======================
