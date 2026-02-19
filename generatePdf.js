@@ -63,6 +63,4 @@ async function generatePdf(plan) {
   }
 }
 
-module.exports = {
-  generatePdf,
-};
+module.exports = generatePdf;

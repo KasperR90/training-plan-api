@@ -6,7 +6,7 @@ const Stripe = require('stripe');
 
 const generateTrainingPlan = require('./trainingPlanGenerator');
 const generatePdf = require('./generatePdf');
-const sendMail = require('./sendMail');
+const { sendTrainingPlanMail } = require('./sendMail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -83,18 +83,24 @@ app.post(
         const sessions = Number(session.metadata.sessions);
 
         // 1️⃣ Generate training plan
-        const plan = generateTrainingPlan({
-          distance,
-          goal_time,
-          weeks,
-          sessions,
-        });
+       const plan = generateTrainingPlan({
+	distance,
+  	goalTime: goal_time,
+  	weeks,
+  	sessionsPerWeek: sessions,
+	});
 
         // 2️⃣ Generate PDF
-        const pdfBuffer = await generatePdf(plan, distance);
+        const pdfResult = await generatePdf(plan);
 
         // 3️⃣ Send email
-        await sendMail(email, pdfBuffer, distance);
+        await sendTrainingPlanMail({
+  	to: email,
+  	pdfPath: pdfResult.filePath,
+  	pdfFileName: pdfResult.fileName,
+  	distanceLabel: plan.meta.distanceLabel,
+	});
+
 
         console.log('📧 Email successfully sent to:', email);
 
