@@ -4,25 +4,41 @@ const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 /**
  * ======================
- * CORS CONFIGURATION
+ * ENV CHECK (CRITICAL)
+ * ======================
+ */
+const REQUIRED_ENVS = [
+  'STRIPE_SECRET_KEY',
+  'STRIPE_PRICE_ID',
+  'STRIPE_WEBHOOK_SECRET',
+];
+
+REQUIRED_ENVS.forEach((key) => {
+  if (!process.env[key]) {
+    console.error(`❌ Missing ENV variable: ${key}`);
+  }
+});
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+/**
+ * ======================
+ * MIDDLEWARE
  * ======================
  */
 app.use(
   cors({
     origin: 'https://runiq.run',
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   })
 );
 
-// Needed for JSON bodies (except webhooks)
 app.use(express.json());
 
 /**
@@ -31,16 +47,20 @@ app.use(express.json());
  * ======================
  */
 app.post('/checkout', async (req, res) => {
+  console.log('➡️ /checkout called');
+  console.log('📦 Body:', req.body);
+
   try {
     const { email, distance, goal_time, weeks, sessions } = req.body;
 
     if (!email || !distance || !goal_time || !weeks || !sessions) {
+      console.error('❌ Missing parameters');
       return res.status(400).json({
         error: 'Missing required training plan parameters',
       });
     }
 
-    console.log('📦 Checkout payload:', req.body);
+    console.log('💳 Creating Stripe Checkout session…');
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -58,15 +78,30 @@ app.post('/checkout', async (req, res) => {
         email,
         distance,
         goal_time,
-        weeks,
-        sessions,
+        weeks: String(weeks),
+        sessions: String(sessions),
       },
     });
 
+    console.log('✅ Stripe session created:', session.id);
+
     res.json({ url: session.url });
-  } catch (error) {
-    console.error('❌ Checkout error:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+
+  } catch (err) {
+    console.error('❌ CHECKOUT ERROR');
+    console.error(err);
+
+    if (err.type === 'StripeInvalidRequestError') {
+      return res.status(500).json({
+        error: 'Stripe configuration error',
+        details: err.message,
+      });
+    }
+
+    res.status(500).json({
+      error: 'Internal server error',
+      details: err.message,
+    });
   }
 });
 
@@ -89,13 +124,13 @@ app.post(
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error('❌ Webhook signature verification failed', err.message);
+      console.error('❌ Webhook signature error:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     if (event.type === 'checkout.session.completed') {
-      console.log('✅ Stripe checkout completed');
-      // hier komt je PDF + mail flow
+      console.log('✅ Checkout completed:', event.data.object.id);
+      // PDF + mail flow komt hier
     }
 
     res.json({ received: true });
