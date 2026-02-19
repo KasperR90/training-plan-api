@@ -4,6 +4,10 @@ const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
 
+const generateTrainingPlan = require('./trainingPlanGenerator');
+const generatePdf = require('./generatePdf');
+const sendMail = require('./sendMail');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -16,6 +20,7 @@ const REQUIRED_ENVS = [
   'STRIPE_SECRET_KEY',
   'STRIPE_PRICE_ID',
   'STRIPE_WEBHOOK_SECRET',
+  'SENDGRID_API_KEY',
 ];
 
 REQUIRED_ENVS.forEach((key) => {
@@ -48,10 +53,11 @@ app.use(
 app.post(
   '/webhook/stripe',
   express.raw({ type: 'application/json' }),
-  (req, res) => {
+  async (req, res) => {
     const sig = req.headers['stripe-signature'];
 
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
@@ -64,8 +70,37 @@ app.post(
     }
 
     if (event.type === 'checkout.session.completed') {
-      console.log('✅ Checkout completed:', event.data.object.id);
-      // PDF + mail flow komt hier
+      const session = event.data.object;
+
+      console.log('✅ Checkout completed:', session.id);
+      console.log('📦 Metadata:', session.metadata);
+
+      try {
+        const email = session.metadata.email;
+        const distance = session.metadata.distance;
+        const goal_time = session.metadata.goal_time;
+        const weeks = Number(session.metadata.weeks);
+        const sessions = Number(session.metadata.sessions);
+
+        // 1️⃣ Generate training plan
+        const plan = generateTrainingPlan({
+          distance,
+          goal_time,
+          weeks,
+          sessions,
+        });
+
+        // 2️⃣ Generate PDF
+        const pdfBuffer = await generatePdf(plan, distance);
+
+        // 3️⃣ Send email
+        await sendMail(email, pdfBuffer, distance);
+
+        console.log('📧 Email successfully sent to:', email);
+
+      } catch (err) {
+        console.error('❌ PDF or Mail error:', err);
+      }
     }
 
     res.json({ received: true });
