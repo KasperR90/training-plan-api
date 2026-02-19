@@ -39,7 +39,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+
 
 /**
  * ======================
@@ -136,6 +136,9 @@ app.post(
     res.json({ received: true });
   }
 );
+
+// JSON parser for normal routes (after webhook!)
+app.use(express.json());
 
 /**
  * ======================
