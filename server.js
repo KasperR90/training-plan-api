@@ -3,7 +3,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
+const fs = require('fs');
+
 const generateTrainingPlan = require('./trainingPlanGenerator');
+const generatePdf = require('./generatePdf');
+const { sendTrainingPlanMail } = require('./sendMail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +35,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 /**
  * ======================
  * IDEMPOTENCY MEMORY STORE
- * (Prevents duplicate email sends)
  * ======================
  */
 const processedSessions = new Set();
@@ -78,7 +81,6 @@ app.post(
 
       console.log('✅ Checkout completed:', session.id);
 
-      // Prevent duplicate processing
       if (processedSessions.has(session.id)) {
         console.log('⚠️ Session already processed:', session.id);
         return res.json({ received: true });
@@ -86,10 +88,10 @@ app.post(
 
       processedSessions.add(session.id);
 
-      // Return 200 immediately to Stripe
+      // Return immediately to Stripe
       res.json({ received: true });
 
-      // Process in background
+      // Background processing
       processCheckout(session);
       return;
     }
@@ -106,7 +108,7 @@ app.post(
 async function processCheckout(session) {
   try {
     console.log('⚙️ Starting background processing:', session.id);
-    
+
     const email = session.metadata.email;
     const distance = session.metadata.distance;
     const goal_time = session.metadata.goal_time;
@@ -127,12 +129,28 @@ async function processCheckout(session) {
 
     console.log('📊 Training plan generated');
 
-  // 2️⃣ PDF temporarily disabled
-console.log('📄 PDF generation skipped (temporary)');
+    // 2️⃣ Generate PDF
+    const pdfResult = await generatePdf(plan);
+    console.log('📄 PDF generated:', pdfResult.fileName);
 
-// 3️⃣ Email temporarily disabled
-console.log('📧 Email sending skipped (temporary)');
+    // 3️⃣ Send email
+    await sendTrainingPlanMail({
+      to: email,
+      pdfPath: pdfResult.filePath,
+      pdfFileName: pdfResult.fileName,
+      distanceLabel: plan.meta.distanceLabel,
+    });
 
+    console.log('📧 Email successfully sent');
+
+    // 4️⃣ Cleanup generated file
+    fs.unlink(pdfResult.filePath, (err) => {
+      if (err) {
+        console.warn('⚠️ Failed to delete PDF:', err.message);
+      }
+    });
+
+    console.log('🎉 Order fully processed:', session.id);
 
   } catch (err) {
     console.error('❌ Background processing error:', err);
@@ -197,6 +215,15 @@ app.post('/checkout', async (req, res) => {
       details: err.message,
     });
   }
+});
+
+/**
+ * ======================
+ * HEALTH CHECK ROUTE
+ * ======================
+ */
+app.get('/', (req, res) => {
+  res.status(200).send('RUNIQ API is live');
 });
 
 /**
