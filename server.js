@@ -3,11 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
-const fs = require('fs');
-
 const generateTrainingPlan = require('./trainingPlanGenerator');
-const generatePdf = require('./generatePdf');
-const { sendTrainingPlanMail } = require('./sendMail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -208,10 +204,6 @@ app.post('/checkout', async (req, res) => {
  * START SERVER
  * ======================
  */
-app.get('/', (req, res) => {
-  res.status(200).send('RUNIQ API is live');
-});
-
 app.listen(PORT, () => {
   console.log(`🚀 RUNIQ API running on port ${PORT}`);
 });
