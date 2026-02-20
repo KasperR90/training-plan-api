@@ -208,6 +208,10 @@ app.post('/checkout', async (req, res) => {
  * START SERVER
  * ======================
  */
+app.get('/', (req, res) => {
+  res.status(200).send('RUNIQ API is live');
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 RUNIQ API running on port ${PORT}`);
 });
