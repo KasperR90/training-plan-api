@@ -110,6 +110,7 @@ app.post(
 async function processCheckout(session) {
   try {
     console.log('⚙️ Starting background processing:', session.id);
+    return; // 🔥 tijdelijke test – stopt Puppeteer & mail;
 
     const email = session.metadata.email;
     const distance = session.metadata.distance;
