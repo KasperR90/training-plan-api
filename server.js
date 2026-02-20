@@ -110,8 +110,7 @@ app.post(
 async function processCheckout(session) {
   try {
     console.log('⚙️ Starting background processing:', session.id);
-    return; // 🔥 tijdelijke test – stopt Puppeteer & mail;
-
+    
     const email = session.metadata.email;
     const distance = session.metadata.distance;
     const goal_time = session.metadata.goal_time;
@@ -132,30 +131,12 @@ async function processCheckout(session) {
 
     console.log('📊 Training plan generated');
 
-    // 2️⃣ Generate PDF
-    const pdfResult = await generatePdf(plan);
-    console.log('📄 PDF generated:', pdfResult.fileName);
+  // 2️⃣ PDF temporarily disabled
+console.log('📄 PDF generation skipped (temporary)');
 
-    // 3️⃣ Send email
-    await sendTrainingPlanMail({
-      to: email,
-      pdfPath: pdfResult.filePath,
-      pdfFileName: pdfResult.fileName,
-      distanceLabel: plan.meta.distanceLabel,
-    });
+// 3️⃣ Email temporarily disabled
+console.log('📧 Email sending skipped (temporary)');
 
-    console.log('📧 Email successfully sent to:', email);
-
-    // 4️⃣ Cleanup PDF file
-    fs.unlink(pdfResult.filePath, (err) => {
-      if (err) {
-        console.error('⚠️ Failed to delete PDF:', err.message);
-      } else {
-        console.log('🧹 PDF cleaned up');
-      }
-    });
-
-    console.log('🎉 Order fully processed:', session.id);
 
   } catch (err) {
     console.error('❌ Background processing error:', err);
