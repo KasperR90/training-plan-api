@@ -1,5 +1,5 @@
 // services/build5KPlanEngine.js
-// RUNIQ 5K Performance Engine — V2 Professional Edition
+// RUNIQ 5K Engine — Stable Volume Version
 
 function toSeconds(timeStr) {
   const [min, sec] = timeStr.split(':').map(Number);
@@ -28,6 +28,7 @@ function build5KPlanEngine({
   frequency,
   currentVolume
 }) {
+
   const currentSec = toSeconds(currentTime);
   const goalSec = toSeconds(goalTime);
 
@@ -40,34 +41,8 @@ function build5KPlanEngine({
   let weeklyVolume = currentVolume;
   const planWeeks = [];
 
-  const getFocus = (week) => {
-    if (week <= weeks * 0.4) return "Aerobic Base Development";
-    if (week <= weeks * 0.75) return "Threshold & VO2 Build";
-    return "Sharpening & Race Specific";
-  };
-
-  const getLongRun = (weekVolume, week) => {
-    if (week <= weeks * 0.4) return Math.round(weekVolume * 0.30);
-    if (week <= weeks * 0.75) return Math.round(weekVolume * 0.28);
-    return Math.round(weekVolume * 0.25);
-  };
-
-  const buildThreshold = (week) => {
-    if (week <= 3) return "3 x 8 min @ Threshold (90s jog)";
-    if (week <= 6) return "2 x 12 min @ Threshold (2 min jog)";
-    if (week <= 9) return "20 min continuous Threshold";
-    return "3 x 6 min @ Threshold (90s jog)";
-  };
-
-  const buildVO2 = (week) => {
-    if (week <= 4) return "5 x 600m @ VO2 (90s jog)";
-    if (week <= 8) return "6 x 800m @ VO2 (2 min jog)";
-    return "4 x 1000m @ VO2 (2 min jog)";
-  };
-
   for (let w = 1; w <= weeks; w++) {
 
-    // Volume progression (5%) + deload every 4th week
     if (w % 4 === 0) {
       weeklyVolume *= 0.9;
     } else {
@@ -76,54 +51,81 @@ function build5KPlanEngine({
 
     weeklyVolume = Math.round(weeklyVolume);
 
-    const longRunKm = getLongRun(weeklyVolume, w);
+    const focus =
+      w <= weeks * 0.4
+        ? "Aerobic Base Development"
+        : w <= weeks * 0.75
+        ? "Threshold & VO2 Build"
+        : "Sharpening & Race Specific";
 
-    const thresholdDesc = buildThreshold(w);
-    const vo2Desc = buildVO2(w);
+    const longRun =
+      w <= weeks * 0.4
+        ? Math.round(weeklyVolume * 0.30)
+        : w <= weeks * 0.75
+        ? Math.round(weeklyVolume * 0.28)
+        : Math.round(weeklyVolume * 0.25);
 
-    const qualityKm = 8; // standardized for now
-    const remaining = weeklyVolume - longRunKm - (qualityKm * 2);
+    const thresholdDesc =
+      w <= 3
+        ? `3 x 8 min @ ${zones.threshold}`
+        : w <= 6
+        ? `2 x 12 min @ ${zones.threshold}`
+        : w <= 9
+        ? `20 min continuous @ ${zones.threshold}`
+        : `3 x 6 min @ ${zones.threshold}`;
 
-    const easyKm = Math.max(
-      5,
-      Math.round(remaining / Math.max(1, frequency - 3))
-    );
+    const vo2Desc =
+      w <= 4
+        ? `5 x 600m @ ${zones.vo2}`
+        : w <= 8
+        ? `6 x 800m @ ${zones.vo2}`
+        : `4 x 1000m @ ${zones.vo2}`;
+
+    const qualityKm = 8;
 
     const sessions = [];
 
-    // Threshold session
     sessions.push({
       type: "Threshold",
       description: thresholdDesc,
       totalKm: qualityKm
     });
 
-    // VO2 session
     sessions.push({
       type: "VO2",
       description: vo2Desc,
       totalKm: qualityKm
     });
 
-    // Long run
     sessions.push({
       type: "Long Run",
-      description: `${longRunKm} km easy (${zones.easy})`,
-      totalKm: longRunKm
+      description: `${longRun} km easy @ ${zones.easy}`,
+      totalKm: longRun
     });
 
-    // Easy sessions
-    for (let i = 0; i < frequency - 3; i++) {
+    const remaining = weeklyVolume - (qualityKm * 2) - longRun;
+    const easyRuns = frequency - 3;
+
+    let allocated = 0;
+
+    for (let i = 0; i < easyRuns; i++) {
+      let km =
+        i === easyRuns - 1
+          ? remaining - allocated
+          : Math.round(remaining / easyRuns);
+
+      allocated += km;
+
       sessions.push({
         type: "Easy",
-        description: `${easyKm} km aerobic (${zones.easy})`,
-        totalKm: easyKm
+        description: `${km} km easy @ ${zones.easy}`,
+        totalKm: km
       });
     }
 
     planWeeks.push({
       week: w,
-      focus: getFocus(w),
+      focus,
       volume: weeklyVolume,
       sessions
     });
@@ -139,11 +141,11 @@ function build5KPlanEngine({
       gapPercent: +(gap * 100).toFixed(1),
       warning:
         gap > maxGap
-          ? `Your goal requires a ${(gap * 100).toFixed(
+          ? `Your goal requires ${(gap * 100).toFixed(
               1
             )}% improvement. Based on ${weeks} weeks, ~${(
               maxGap * 100
-            ).toFixed(1)}% is typically realistic.`
+            ).toFixed(1)}% is realistic.`
           : null
     },
     zones,
