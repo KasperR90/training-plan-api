@@ -18,39 +18,82 @@ function generatePdf(plan) {
 
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 60, bottom: 60, left: 60, right: 60 },
+        margins: { top: 70, bottom: 60, left: 60, right: 60 },
         bufferPages: true
       });
 
-      const writeStream = fs.createWriteStream(filePath);
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
 
-      doc.pipe(writeStream);
+      /* ========================
+         COLORS
+      ======================== */
 
-      /* ========= SIMPLE CLEAN LAYOUT ========= */
+      const NAVY = '#06142B';
+      const MINT = '#7ED6B2';
+      const GREY = '#64748B';
+      const LIGHT = '#F1F5F9';
+      const BORDER = '#CBD5E1';
 
       const PAGE_WIDTH = doc.page.width;
+      const PAGE_HEIGHT = doc.page.height;
+      const CONTENT_WIDTH =
+        PAGE_WIDTH - doc.page.margins.left - doc.page.margins.right;
 
-      // COVER
-      doc.fontSize(28).text('RUNIQ 5K PERFORMANCE PLAN', {
-        align: 'center'
-      });
+      /* ========================
+         COVER PAGE
+      ======================== */
+
+      doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill(NAVY);
+
+      const logoBuffer = Buffer.from(LOGO_BASE64, 'base64');
+      doc.image(logoBuffer, PAGE_WIDTH / 2 - 150, 120, { fit: [300, 80] });
+
+      doc.moveDown(8);
+
+      doc.fontSize(42)
+        .fillColor('white')
+        .text('5K PERFORMANCE PLAN', { align: 'center' });
+
+      doc.moveDown(2);
+
+      doc.fontSize(14)
+        .fillColor('#CBD5E1')
+        .text(
+          `${plan.meta.weeks} weeks • ${plan.meta.frequency} sessions per week`,
+          { align: 'center' }
+        );
 
       doc.addPage();
 
-      // OVERVIEW
-      doc.fontSize(16).text('Athlete Overview', { align: 'center' });
+      /* ========================
+         ATHLETE OVERVIEW
+      ======================== */
+
+      doc.fillColor(NAVY)
+        .fontSize(18)
+        .text('Athlete Overview', { align: 'center' });
+
       doc.moveDown();
-      doc.fontSize(12);
-      doc.text(`Current: ${plan.meta.currentTime}`, { align: 'center' });
-      doc.text(`Goal: ${plan.meta.goalTime}`, { align: 'center' });
-      doc.text(`Improvement: ${plan.meta.gapPercent}%`, { align: 'center' });
+
+      doc.fontSize(12).fillColor('#334155');
+      doc.text(`Current 5K: ${plan.meta.currentTime}`, { align: 'center' });
+      doc.text(`Goal 5K: ${plan.meta.goalTime}`, { align: 'center' });
+      doc.text(`Target Improvement: ${plan.meta.gapPercent}%`, { align: 'center' });
 
       doc.addPage();
 
-      // ZONES
-      doc.fontSize(16).text('Training Zones', { align: 'center' });
+      /* ========================
+         TRAINING ZONES
+      ======================== */
+
+      doc.fontSize(18)
+        .fillColor(NAVY)
+        .text('Training Zones', { align: 'center' });
+
       doc.moveDown();
-      doc.fontSize(12);
+
+      doc.fontSize(12).fillColor('#334155');
       doc.text(`Easy: ${plan.zones.easy}`, { align: 'center' });
       doc.text(`Threshold: ${plan.zones.threshold}`, { align: 'center' });
       doc.text(`VO2: ${plan.zones.vo2}`, { align: 'center' });
@@ -58,71 +101,102 @@ function generatePdf(plan) {
 
       doc.addPage();
 
-      // WEEKS (3 per page)
-      let weekCounter = 0;
+      /* ========================
+         WEEK CARDS — 3 PER PAGE
+      ======================== */
+
+      const cardWidth = CONTENT_WIDTH;
+      const cardHeight = 200;
+
+      let weeksOnPage = 0;
 
       plan.weeks.forEach((week, index) => {
 
-        if (weekCounter === 3) {
+        if (weeksOnPage === 3) {
           doc.addPage();
-          weekCounter = 0;
+          weeksOnPage = 0;
         }
 
-        doc.moveDown();
-        doc.fontSize(14).text(
-          `Week ${week.week} — ${week.focus}`,
-          { align: 'center' }
-        );
+        const y = doc.y + 20;
+        const x = doc.page.margins.left;
 
-        doc.moveDown(0.5);
-        doc.fontSize(11).text(
-          `Total Volume: ${week.volume} km`,
-          { align: 'center' }
-        );
+        // Card background
+        doc.roundedRect(x, y, cardWidth, cardHeight, 12)
+          .fillAndStroke(LIGHT, BORDER);
 
-        doc.moveDown();
+        // Header bar
+        doc.rect(x, y, cardWidth, 35)
+          .fill(MINT);
+
+        doc.fillColor(NAVY)
+          .fontSize(12)
+          .text(
+            `WEEK ${week.week} — ${week.focus}`,
+            x + 15,
+            y + 12
+          );
+
+        let innerY = y + 50;
+
+        doc.fontSize(11)
+          .fillColor(NAVY)
+          .text(`Total Volume: ${week.volume} km`, x + 15, innerY);
+
+        innerY += 18;
 
         week.sessions.forEach(s => {
-          doc.fontSize(11).text(
-            `${s.type} — ${s.totalKm} km`,
-            { align: 'center' }
-          );
-          doc.fontSize(10).text(
-            s.description,
-            { align: 'center' }
-          );
-          doc.moveDown(0.5);
+
+          doc.fontSize(10)
+            .fillColor(NAVY)
+            .text(`${s.type} — ${s.totalKm} km`, x + 15, innerY);
+
+          innerY += 12;
+
+          doc.fontSize(9)
+            .fillColor(GREY)
+            .text(
+              s.description,
+              x + 15,
+              innerY,
+              { width: cardWidth - 30 }
+            );
+
+          innerY += 18;
         });
 
-        doc.moveDown();
-        weekCounter++;
+        doc.y = y + cardHeight + 10;
+
+        weeksOnPage++;
       });
 
-      /* ========= PAGINATION FIX ========= */
+      /* ========================
+         PAGINATION (START PAGE 2)
+      ======================== */
 
       const range = doc.bufferedPageRange();
 
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i);
 
-        if (i === 0) continue;
+        if (i === 0) continue; // skip cover
 
         doc.fontSize(9)
+          .fillColor('#94A3B8')
           .text(
             `Page ${i}`,
             0,
-            doc.page.height - 40,
+            PAGE_HEIGHT - 40,
             { align: 'center' }
           );
       }
 
       doc.end();
 
-      writeStream.on('finish', () => {
+      stream.on('finish', () => {
         resolve({ filePath, fileName });
       });
 
-      writeStream.on('error', reject);
+      stream.on('error', reject);
 
     } catch (err) {
       reject(err);
