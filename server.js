@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const Stripe = require('stripe');
 const fs = require('fs');
+const path = require('path');
 
 const build5KPlanEngine = require('./build5KPlanEngine');
 const generatePdf = require('./generatePdf');
@@ -14,34 +15,33 @@ const PORT = process.env.PORT || 3000;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-/* ======================
-   IDEMPOTENCY STORE
-====================== */
+/* =================================================
+   SIMPLE IDEMPOTENCY STORE (in-memory)
+================================================= */
 
 const processedSessions = new Set();
 
-/* ======================
-   CORS
-====================== */
+/* =================================================
+   CORS CONFIG
+================================================= */
 
 app.use(
   cors({
     origin: 'https://runiq.run',
-    methods: ['POST', 'OPTIONS'],
+    methods: ['POST', 'GET', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   })
 );
 
-/* ======================
+/* =================================================
    STRIPE WEBHOOK
-   (MUST BE BEFORE express.json())
-====================== */
+   MUST BE BEFORE express.json()
+================================================= */
 
 app.post(
   '/webhook/stripe',
   express.raw({ type: 'application/json' }),
   (req, res) => {
-
     const sig = req.headers['stripe-signature'];
     let event;
 
@@ -52,7 +52,7 @@ app.post(
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error('Webhook signature error:', err.message);
+      console.error('❌ Webhook signature verification failed:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
@@ -68,8 +68,11 @@ app.post(
       // Respond immediately to Stripe
       res.json({ received: true });
 
-      // Process async
-      processCheckout(session);
+      // Process in background
+      processCheckout(session).catch((err) => {
+        console.error('❌ Background processing failed:', err);
+      });
+
       return;
     }
 
@@ -77,71 +80,71 @@ app.post(
   }
 );
 
-/* ======================
-   BACKGROUND PROCESSING
-====================== */
+/* =================================================
+   BACKGROUND CHECKOUT PROCESSING
+================================================= */
 
 async function processCheckout(session) {
-  try {
+  const metadata = session.metadata;
 
-    const metadata = session.metadata;
-
-    const {
-      email,
-      currentTime,
-      goalTime,
-      weeks,
-      frequency,
-      currentVolume
-    } = metadata;
-
-    if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
-      throw new Error('Missing metadata fields');
-    }
-
-    console.log('Generating 5K plan for:', email);
-
-    const plan = build5KPlanEngine({
-      currentTime,
-      goalTime,
-      weeks: Number(weeks),
-      frequency: Number(frequency),
-      currentVolume: Number(currentVolume)
-    });
-
-    const pdfResult = await generatePdf(plan);
-
-    await sendTrainingPlanMail({
-      to: email,
-      pdfPath: pdfResult.filePath,
-      pdfFileName: pdfResult.fileName,
-      distanceLabel: '5K'
-    });
-
-    // Cleanup
-    fs.unlink(pdfResult.filePath, () => {});
-
-    console.log('Order completed:', session.id);
-
-  } catch (err) {
-    console.error('Background processing error:', err);
+  if (!metadata) {
+    throw new Error('Missing metadata');
   }
+
+  const {
+    email,
+    currentTime,
+    goalTime,
+    weeks,
+    frequency,
+    currentVolume
+  } = metadata;
+
+  if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
+    throw new Error('Missing required metadata fields');
+  }
+
+  console.log(`🚀 Generating 5K plan for ${email}`);
+
+  const plan = build5KPlanEngine({
+    currentTime,
+    goalTime,
+    weeks: Number(weeks),
+    frequency: Number(frequency),
+    currentVolume: Number(currentVolume)
+  });
+
+  const pdfResult = await generatePdf(plan);
+
+  await sendTrainingPlanMail({
+    to: email,
+    pdfPath: pdfResult.filePath,
+    pdfFileName: pdfResult.fileName,
+    distanceLabel: '5K'
+  });
+
+  // Cleanup generated file
+  try {
+    fs.unlinkSync(pdfResult.filePath);
+  } catch (err) {
+    console.warn('⚠️ Could not delete PDF file:', err.message);
+  }
+
+  console.log(`✅ Order completed: ${session.id}`);
 }
 
-/* ======================
-   JSON PARSER
-====================== */
+/* =================================================
+   JSON PARSER (AFTER WEBHOOK)
+================================================= */
 
 app.use(express.json());
 
-/* ======================
+/* =================================================
    CHECKOUT ENDPOINT
-====================== */
+================================================= */
 
 app.post('/checkout', async (req, res) => {
-
   try {
-
     const {
       email,
       currentTime,
@@ -182,7 +185,7 @@ app.post('/checkout', async (req, res) => {
     res.json({ url: session.url });
 
   } catch (err) {
-    console.error('CHECKOUT ERROR:', err);
+    console.error('❌ CHECKOUT ERROR:', err);
 
     res.status(500).json({
       error: 'Internal server error'
@@ -190,18 +193,18 @@ app.post('/checkout', async (req, res) => {
   }
 });
 
-/* ======================
+/* =================================================
    HEALTH CHECK
-====================== */
+================================================= */
 
 app.get('/', (req, res) => {
   res.status(200).send('RUNIQ API is live');
 });
 
-/* ======================
+/* =================================================
    START SERVER
-====================== */
+================================================= */
 
 app.listen(PORT, () => {
-  console.log(`RUNIQ API running on port ${PORT}`);
+  console.log(`🚀 RUNIQ API running on port ${PORT}`);
 });

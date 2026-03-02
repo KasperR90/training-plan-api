@@ -1,4 +1,4 @@
-// generatePdf.js — RUNIQ 5K Performance Edition (Engine Compatible)
+// generatePdf.js — RUNIQ 5K Performance Edition (V2 Engine Compatible)
 
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -35,15 +35,15 @@ function generatePdf(plan) {
       doc.registerFont('Bold', path.join(fontsPath, 'Inter-Bold.otf'));
 
       /* =========================
-         BRAND COLORS
+         COLORS
       ========================= */
 
       const NAVY = '#06142B';
       const MINT = '#7ED6B2';
       const WHITE = '#FFFFFF';
-      const GREY = '#94A3B8';
-      const LIGHT = '#F1F5F9';
-      const BORDER = '#1E293B';
+      const GREY = '#64748B';
+      const LIGHT = '#F8FAFC';
+      const BORDER = '#E2E8F0';
       const WARNING = '#DC2626';
 
       const PAGE_WIDTH = doc.page.width;
@@ -58,10 +58,7 @@ function generatePdf(plan) {
       doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill(NAVY);
 
       const logoBuffer = Buffer.from(LOGO_BASE64, 'base64');
-
-      doc.image(logoBuffer, PAGE_WIDTH / 2 - 150, 120, {
-        fit: [300, 80]
-      });
+      doc.image(logoBuffer, PAGE_WIDTH / 2 - 150, 120, { fit: [300, 80] });
 
       doc.moveDown(10);
 
@@ -79,18 +76,11 @@ function generatePdf(plan) {
 
       doc.font('Regular')
         .fontSize(14)
-        .fillColor(GREY)
+        .fillColor('#CBD5E1')
         .text(
           `${plan.meta.weeks} weeks  •  ${plan.meta.frequency} sessions per week`,
           { align: 'center' }
         );
-
-      doc.moveDown(3);
-
-      doc.font('SemiBold')
-        .fontSize(16)
-        .fillColor(WHITE)
-        .text('Train smarter. Automatically.', { align: 'center' });
 
       doc.addPage();
 
@@ -98,26 +88,17 @@ function generatePdf(plan) {
          ATHLETE OVERVIEW
       ========================= */
 
-      doc.font('Bold')
-        .fontSize(18)
-        .fillColor(NAVY)
-        .text('Athlete Overview');
-
+      doc.font('Bold').fontSize(18).fillColor(NAVY).text('Athlete Overview');
       doc.moveDown();
 
-      doc.font('Regular')
-        .fontSize(12)
-        .fillColor('#334155')
-        .text(`Current 5K Time: ${plan.meta.currentTime}`);
-
+      doc.font('Regular').fontSize(12).fillColor('#334155');
+      doc.text(`Current 5K Time: ${plan.meta.currentTime}`);
       doc.text(`Goal 5K Time: ${plan.meta.goalTime}`);
-
       doc.text(`Target Improvement: ${plan.meta.gapPercent}%`);
 
       if (plan.meta.warning) {
         doc.moveDown();
-        doc.fillColor(WARNING)
-           .text(plan.meta.warning);
+        doc.fillColor(WARNING).text(plan.meta.warning);
       }
 
       doc.addPage();
@@ -126,33 +107,24 @@ function generatePdf(plan) {
          TRAINING ZONES
       ========================= */
 
-      doc.font('Bold')
-        .fontSize(18)
-        .fillColor(NAVY)
-        .text('Training Zones');
-
+      doc.font('Bold').fontSize(18).fillColor(NAVY).text('Training Zones');
       doc.moveDown();
 
-      doc.font('Regular')
-        .fontSize(12)
-        .fillColor('#334155')
-        .text(`Easy: ${plan.zones.easy.min} – ${plan.zones.easy.max}`);
-
-      doc.text(`Threshold: ${plan.zones.threshold.min} – ${plan.zones.threshold.max}`);
-
-      doc.text(`VO2: ${plan.zones.vo2.min} – ${plan.zones.vo2.max}`);
-
-      doc.text(`Race Pace: ${plan.zones.race}`);
+      doc.font('Regular').fontSize(12).fillColor('#334155');
+      doc.text(`Easy Pace: ${plan.zones.easy} sec/km`);
+      doc.text(`Threshold Pace: ${plan.zones.threshold} sec/km`);
+      doc.text(`VO2 Pace: ${plan.zones.vo2} sec/km`);
+      doc.text(`Race Pace: ${plan.zones.race} sec/km`);
 
       doc.addPage();
 
       /* =========================
-         WEEK GRID LAYOUT
+         WEEK CARDS
       ========================= */
 
       const colGap = 20;
       const colWidth = (CONTENT_WIDTH - colGap) / 2;
-      const cardHeight = 220;
+      const cardHeight = 240;
 
       let xLeft = doc.page.margins.left;
       let xRight = xLeft + colWidth + colGap;
@@ -175,24 +147,24 @@ function generatePdf(plan) {
         doc.roundedRect(x, y, colWidth, cardHeight, 12)
           .fillAndStroke(LIGHT, BORDER);
 
-        doc.rect(x, y, colWidth, 36)
-          .fill(MINT);
+        doc.rect(x, y, colWidth, 38).fill(MINT);
 
         doc.font('Bold')
-          .fontSize(12)
+          .fontSize(11)
           .fillColor(NAVY)
-          .text(
-            `WEEK ${week.week} — ${week.phase}`,
-            x + 12,
-            y + 10
-          );
+          .text(`WEEK ${week.week}`, x + 12, y + 12);
 
-        let innerY = y + 50;
+        doc.font('Regular')
+          .fontSize(9)
+          .fillColor('#0F172A')
+          .text(`Focus: ${week.focus}`, x + 90, y + 14);
+
+        let innerY = y + 55;
 
         doc.font('SemiBold')
           .fontSize(10)
           .fillColor(NAVY)
-          .text(`Total: ${week.total_km} km`, x + 12, innerY);
+          .text(`Total Volume: ${week.volume} km`, x + 12, innerY);
 
         innerY += 18;
 
@@ -201,17 +173,13 @@ function generatePdf(plan) {
           doc.font('SemiBold')
             .fontSize(9)
             .fillColor(NAVY)
-            .text(
-              `${s.type.toUpperCase()}`,
-              x + 12,
-              innerY
-            );
+            .text(s.type.toUpperCase(), x + 12, innerY);
 
           doc.font('Regular')
             .fontSize(9)
-            .fillColor('#475569')
+            .fillColor('#334155')
             .text(
-              `${s.distance_km || ''} km`,
+              `${s.totalKm} km`,
               x + colWidth - 50,
               innerY,
               { align: 'right' }
@@ -221,7 +189,7 @@ function generatePdf(plan) {
 
           doc.font('Regular')
             .fontSize(8)
-            .fillColor('#64748B')
+            .fillColor(GREY)
             .text(
               s.description,
               x + 12,
@@ -229,7 +197,7 @@ function generatePdf(plan) {
               { width: colWidth - 24 }
             );
 
-          innerY += 18;
+          innerY += 20;
         });
 
       });
