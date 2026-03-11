@@ -115,7 +115,9 @@ function build5KPlanEngine({
 }) {
 
   const currentSec = toSeconds(currentTime);
-  const goalSec = toSeconds(goalTime);
+  const goalSec = goalTime.includes(':')
+  ? toSeconds(goalTime)
+  : toSeconds(currentTime);
 
   const gap = (currentSec - goalSec) / currentSec;
 
