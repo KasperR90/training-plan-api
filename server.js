@@ -208,3 +208,10 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 RUNIQ API running on port ${PORT}`);
 });
+
+/* =================================================
+   API CONNECT
+================================================= */
+
+const planRoute = require("./api/generate-plan");
+app.use("/api", planRoute);
