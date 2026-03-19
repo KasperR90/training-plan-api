@@ -144,6 +144,8 @@ app.use(express.json());
    CHECKOUT ENDPOINT
 ================================================= */
 
+console.log("🔥 /checkout endpoint HIT");
+
 app.post('/checkout', async (req, res) => {
   try {
     const {
@@ -234,6 +236,31 @@ app.get('/', (req, res) => {
 /* =================================================
    START SERVER
 ================================================= */
+
+/* =================================================
+   TEST ABANDONED EMAIL
+================================================= */
+
+app.post("/api/abandoned-test", async (req, res) => {
+  const { email } = req.body;
+
+  console.log("📥 Abandoned test trigger:", email);
+
+  if (!email) {
+    return res.status(400).json({ error: "No email provided" });
+  }
+
+  try {
+    await sendAbandonedEmail({ to: email });
+
+    console.log("📬 Abandoned email sent");
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Email error:", err);
+    res.status(500).json({ error: "failed" });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 RUNIQ API running on port ${PORT}`);
