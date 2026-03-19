@@ -107,6 +107,12 @@ async function processCheckout(session) {
     currentVolume
   } = metadata;
 
+  // 🔥 STOP abandoned flow (HIER!)
+  if (abandonedStore[email]) {
+    abandonedStore[email].hasPurchased = true;
+    console.log("🛑 Abandoned flow stopped (purchase):", email);
+  }
+
   if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
     throw new Error('Missing required metadata fields');
   }
@@ -207,12 +213,22 @@ async function triggerEmailStep(email, step) {
   }
 }
 
-// 🔥 STOP abandoned flow
-if (abandonedStore[email]) {
-  abandonedStore[email].hasPurchased = true;
-  console.log("🛑 Abandoned flow stopped (purchase):", email);
-}
 
+
+   app.post('/checkout', async (req, res) => {
+  try {
+    const {
+      email,
+      currentTime,
+      goalTime,
+      weeks,
+      frequency,
+      currentVolume
+    } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Missing email" });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -240,10 +256,7 @@ if (abandonedStore[email]) {
 
   } catch (err) {
     console.error('❌ CHECKOUT ERROR:', err);
-
-    res.status(500).json({
-      error: 'Internal server error'
-    });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
