@@ -9,6 +9,7 @@ const path = require('path');
 const build5KPlanEngine = require('./build5KPlanEngine');
 const generatePdf = require('./generatePdf');
 const { sendTrainingPlanMail } = require('./sendMail');
+const { sendAbandonedEmail } = require('./sendMail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -153,6 +154,31 @@ app.post('/checkout', async (req, res) => {
       frequency,
       currentVolume
     } = req.body;
+
+
+// 🔥 ABANDONED EMAIL TRIGGER
+if (email) {
+
+  setTimeout(async () => {
+
+    try {
+      // 🔥 check via frontend flag (via metadata of later uitbreiding)
+      // voor nu simpele safeguard:
+      console.log("Checking if user purchased...");
+
+      // 👉 (later kunnen we dit uitbreiden met echte DB check)
+
+      await sendAbandonedEmail({ to: email });
+
+      console.log("📬 Abandoned email sent");
+
+    } catch (err) {
+      console.error(err);
+    }
+
+  }, 1000 * 60 * 60);
+
+}
 
     if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
       return res.status(400).json({

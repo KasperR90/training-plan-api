@@ -142,6 +142,99 @@ RUNIQ
   }
 }
 
+
+/* =========================
+   Send abandoned checkout email
+========================= */
+async function sendAbandonedEmail({ to }) {
+  if (!to) {
+    throw new Error('Recipient email address is required');
+  }
+
+  const subject = "Your 5K plan is ready 👀";
+
+  const textContent = `
+Hey,
+
+You started creating your personalized 5K training plan, but didn’t finish yet.
+
+Your plan is ready and tailored to your goal.
+
+Most runners never follow a structured plan.
+That’s exactly why they don’t improve.
+
+You’re already ahead.
+
+Start your plan here:
+https://runiq.run/5k-plan/
+
+— RUNIQ
+`.trim();
+
+  const htmlContent = `
+<p>Hey,</p>
+
+<p>
+  You started creating your personalized <strong>5K training plan</strong>, 
+  but didn’t finish yet.
+</p>
+
+<p>
+  Your plan is ready and tailored to your goal.
+</p>
+
+<p>
+  Most runners never follow a structured plan.<br/>
+  That’s exactly why they don’t improve.
+</p>
+
+<p>
+  You’re already ahead.
+</p>
+
+<p>
+  <a href="https://runiq.run/5k-plan/"
+     style="display:inline-block;padding:14px 22px;background:#22C58B;color:#ffffff;border-radius:10px;text-decoration:none;font-weight:600;">
+     Start my 5K plan →
+  </a>
+</p>
+
+<p style="margin-top:20px;font-size:12px;color:#888;">
+  Instant access • 30-day guarantee
+</p>
+
+<p>
+  — RUNIQ
+</p>
+`;
+
+  const msg = {
+    to,
+    from: {
+      email: MAIL_FROM,
+      name: 'RUNIQ',
+    },
+    subject,
+    text: textContent,
+    html: htmlContent,
+  };
+
+  try {
+    console.log('📤 Sending abandoned email to:', to);
+    await sgMail.send(msg);
+    console.log('✅ Abandoned email sent');
+  } catch (error) {
+    console.error(
+      '❌ SendGrid error:',
+      JSON.stringify(error.response?.body || error.message, null, 2)
+    );
+    throw error;
+  }
+}
+
+
+
 module.exports = {
   sendTrainingPlanMail,
+  sendAbandonedEmail,
 };
