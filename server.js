@@ -179,7 +179,7 @@ app.post("/api/abandoned/start", (req, res) => {
   };
 
   // ⏱️ EMAIL 1 (1 uur)
-  setTimeout(() => triggerEmailStep(email, 1), 1000 * 60 * 60);
+  setTimeout(() => triggerEmailStep(email, 1), 1000 * 30);
 
   // ⏱️ EMAIL 2 (24 uur)
   setTimeout(() => triggerEmailStep(email, 2), 1000 * 60 * 60 * 24);
