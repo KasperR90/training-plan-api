@@ -17,6 +17,12 @@ const PORT = process.env.PORT || 3000;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /* =================================================
+   ABANDONED STORE (TEMP DB)
+================================================= */
+
+const abandonedStore = {};
+
+/* =================================================
    SIMPLE IDEMPOTENCY STORE (in-memory)
 ================================================= */
 
@@ -144,51 +150,67 @@ app.use(express.json());
    CHECKOUT ENDPOINT
 ================================================= */
 
-console.log("🔥 /checkout endpoint HIT");
+app.post("/api/abandoned/start", (req, res) => {
+  const { email, planData } = req.body;
 
-app.post('/checkout', async (req, res) => {
+  if (!email) {
+    return res.status(400).json({ error: "No email" });
+  }
+
+  // ❌ voorkom dubbele entries
+  if (abandonedStore[email]) {
+    return res.json({ status: "already_exists" });
+  }
+
+  console.log("📥 Abandoned flow started:", email);
+
+  abandonedStore[email] = {
+    email,
+    planData,
+    hasPurchased: false,
+    recoveryStep: 0,
+    createdAt: Date.now(),
+  };
+
+  // ⏱️ EMAIL 1 (1 uur)
+  setTimeout(() => triggerEmailStep(email, 1), 1000 * 60 * 60);
+
+  // ⏱️ EMAIL 2 (24 uur)
+  setTimeout(() => triggerEmailStep(email, 2), 1000 * 60 * 60 * 24);
+
+  // ⏱️ EMAIL 3 (48 uur)
+  setTimeout(() => triggerEmailStep(email, 3), 1000 * 60 * 60 * 48);
+
+  res.json({ success: true });
+});
+
+async function triggerEmailStep(email, step) {
+  const user = abandonedStore[email];
+
+  if (!user) return;
+  if (user.hasPurchased) return;
+  if (user.recoveryStep >= step) return;
+
   try {
-    const {
-      email,
-      currentTime,
-      goalTime,
-      weeks,
-      frequency,
-      currentVolume
-    } = req.body;
+    console.log(`📬 Sending step ${step} to ${email}`);
 
+    await sendAbandonedEmail({
+      to: email,
+      step,
+      planData: user.planData,
+    });
 
-// 🔥 ABANDONED EMAIL TRIGGER
+    user.recoveryStep = step;
 
-    if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
-      return res.status(400).json({
-        error: 'Missing required parameters'
-      });
-    }
+  } catch (err) {
+    console.error("❌ Email step failed:", err);
+  }
+}
 
-console.log("📥 Checkout request received for:", email);
-
-if (email) {
-
-  setTimeout(async () => {
-
-    try {
-      // 🔥 check via frontend flag (via metadata of later uitbreiding)
-      // voor nu simpele safeguard:
-      console.log("Checking if user purchased...");
-
-      // 👉 (later kunnen we dit uitbreiden met echte DB check)
-
-      await sendAbandonedEmail({ to: email });
-
-      console.log("📬 Abandoned email sent");
-
-    } catch (err) {
-      console.error(err);
-    }
-
-  }, 1000 * 30 );
-
+// 🔥 STOP abandoned flow
+if (abandonedStore[email]) {
+  abandonedStore[email].hasPurchased = true;
+  console.log("🛑 Abandoned flow stopped (purchase):", email);
 }
 
 
