@@ -157,6 +157,15 @@ app.post('/checkout', async (req, res) => {
 
 
 // 🔥 ABANDONED EMAIL TRIGGER
+
+    if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
+      return res.status(400).json({
+        error: 'Missing required parameters'
+      });
+    }
+
+console.log("📥 Checkout request received for:", email);
+
 if (email) {
 
   setTimeout(async () => {
@@ -176,15 +185,10 @@ if (email) {
       console.error(err);
     }
 
-  }, 1000 * 60 * 60);
+  }, 1000 * 30 );
 
 }
 
-    if (!email || !currentTime || !goalTime || !weeks || !frequency || !currentVolume) {
-      return res.status(400).json({
-        error: 'Missing required parameters'
-      });
-    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
