@@ -183,7 +183,7 @@ That’s exactly why they don’t improve.
 </p>
 
 <p style="margin-top:20px;font-size:12px;color:#888;">
-  Instant access • €19 • 30-day guarantee
+  Instant download • just €19 
 </p>
 
 <p>— RUNIQ</p>

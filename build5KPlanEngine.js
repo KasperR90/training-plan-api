@@ -108,16 +108,36 @@ function buildLongRun(phase, distance, zones) {
 
 function build5KPlanEngine({
   currentTime,
+  estimatedAbility,
   goalTime,
   weeks,
   frequency,
   currentVolume
 }) {
 
-  const currentSec = toSeconds(currentTime);
-  const goalSec = goalTime.includes(':')
+
+let effectiveCurrentTime = currentTime;
+
+if (!effectiveCurrentTime) {
+  // fallback mapping (in minuten → naar string)
+  const fallbackMap = {
+    cant_run_5k: "35:00",
+    can_run_5k: "30:00",
+    regular_runner: "25:00"
+  };
+
+  effectiveCurrentTime = fallbackMap[estimatedAbility] || "30:00";
+}
+
+if (typeof effectiveCurrentTime !== "string") {
+  effectiveCurrentTime = "30:00";
+}
+
+const currentSec = toSeconds(effectiveCurrentTime); 
+
+ const goalSec = goalTime && goalTime.includes(':')
   ? toSeconds(goalTime)
-  : toSeconds(currentTime);
+  : currentSec;
 
   const gap = (currentSec - goalSec) / currentSec;
 
@@ -303,7 +323,7 @@ function build5KPlanEngine({
   return {
     meta: {
       distance: "5K",
-      currentTime,
+      currentTime: effectiveCurrentTime,
       goalTime,
       weeks,
       frequency,
