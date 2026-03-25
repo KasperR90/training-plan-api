@@ -127,6 +127,14 @@ async function processCheckout(session) {
     currentVolume: Number(currentVolume)
   });
 
+
+
+// 🔥 DEBUG HIER
+console.log("=== PDF PLAN DEBUG ===");
+console.log(JSON.stringify(plan.weeks[0], null, 2));
+
+
+
   const pdfResult = await generatePdf(plan);
 
   await sendTrainingPlanMail({

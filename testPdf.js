@@ -1,84 +1,54 @@
 const generatePdf = require("./generatePdf");
+const build5KPlanEngine = require("./build5KPlanEngine");
 
-async function runTest(){
+async function runTest() {
 
-const testPlan = {
+  console.log("🚀 Generating FULL plan from engine...\n");
 
-meta: {
-currentTime: "25:00",
-goalTime: "22:00",
-frequency: 4,
-weeks: 12
-},
+  /* =========================
+     REAL INPUT (zoals user)
+  ========================= */
 
-zones: {
-easy: "6:00 – 7:00 /km",
-threshold: "4:40 – 4:50 /km",
-vo2: "4:05 – 4:20 /km",
-race: "4:24 /km"
-},
+  const input = {
+    currentTime: "25:00",
+    goalTime: "22:00",
+    weeks: 12,
+    frequency: 4,
+    currentVolume: 30
+  };
 
-weeks: [
-{
-week: 1,
-focus: "Base",
-volume: 32,
-sessions: [
-{
-day: "Tuesday",
-type: "Easy Run",
-description: "6 km easy pace"
-},
-{
-day: "Thursday",
-type: "Threshold",
-description: "5 × 5 min threshold with 2 min recovery"
-},
-{
-day: "Sunday",
-type: "Long Run",
-description: "10 km comfortable pace"
-}
-]
-},
-{
-week: 2,
-focus: "Progression",
-volume: 35,
-sessions: [
-{
-day: "Tuesday",
-type: "Easy Run",
-description: "7 km easy"
-},
-{
-day: "Thursday",
-type: "VO₂ Workout",
-description: "6 × 3 min VO₂ pace"
-},
-{
-day: "Sunday",
-type: "Long Run",
-description: "12 km steady"
-}
-]
-}
-]
+  /* =========================
+     BUILD PLAN (ENGINE)
+  ========================= */
 
-};
+  const plan = build5KPlanEngine(input);
 
-try{
+  /* =========================
+     DEBUG (BELANGRIJK)
+  ========================= */
 
-const result = await generatePdf(testPlan);
+  console.log("=== SAMPLE WEEK ===");
+  console.log(JSON.stringify(plan.weeks[0], null, 2));
 
-console.log("✅ PDF created:");
-console.log(result.filePath);
+  console.log("\n=== SAMPLE SESSION ===");
+  console.log(JSON.stringify(plan.weeks[0].sessions[0], null, 2));
 
-}catch(err){
+  /* =========================
+     GENERATE PDF
+  ========================= */
 
-console.error("❌ Test failed:", err);
+  try {
 
-}
+    const result = await generatePdf(plan);
+
+    console.log("\n✅ PDF created:");
+    console.log(result.filePath);
+
+  } catch (err) {
+
+    console.error("❌ Test failed:", err);
+
+  }
 
 }
 

@@ -9,48 +9,44 @@ function formatPace(sec) {
   return `${min}:${s.toString().padStart(2, '0')}`;
 }
 
+/* =========================
+   ZONES (IMPROVED)
+========================= */
+
 function buildZones(goalPaceSec) {
-
-  const easyMin = goalPaceSec * 1.15;
-  const easyMax = goalPaceSec * 1.30;
-
-  const thresholdMin = goalPaceSec * 1.02;
-  const thresholdMax = goalPaceSec * 1.05;
-
-  const vo2Min = goalPaceSec * 0.95;
-  const vo2Max = goalPaceSec * 0.98;
-
   return {
-    easy: `${formatPace(easyMin)} - ${formatPace(easyMax)}/km`,
-    threshold: `${formatPace(thresholdMin)} - ${formatPace(thresholdMax)}/km`,
-    vo2: `${formatPace(vo2Min)} - ${formatPace(vo2Max)}/km`,
+    easy: `${formatPace(goalPaceSec * 1.15)} - ${formatPace(goalPaceSec * 1.30)}/km`,
+    threshold: `${formatPace(goalPaceSec * 1.02)} - ${formatPace(goalPaceSec * 1.05)}/km`,
+    vo2: `${formatPace(goalPaceSec * 0.95)} - ${formatPace(goalPaceSec * 0.98)}/km`,
     race: `${formatPace(goalPaceSec)}/km`
   };
 }
 
-/* WORKOUT LIBRARIES */
+/* =========================
+   WORKOUT LIBRARIES (UPGRADED)
+========================= */
 
 const thresholdLibrary = [
-  "3 x 8 min @ THRESHOLD",
-  "4 x 6 min @ THRESHOLD",
+  "3 x 8 min @ THRESHOLD (2 min jog recovery)",
+  "4 x 6 min @ THRESHOLD (90s recovery)",
   "20 min continuous @ THRESHOLD",
-  "2 x 12 min @ THRESHOLD",
-  "3 x 10 min @ THRESHOLD"
+  "2 x 12 min @ THRESHOLD (3 min recovery)",
+  "3 x 10 min @ THRESHOLD (2 min recovery)"
 ];
 
 const vo2Library = [
-  "8 x 400m @ VO2",
-  "6 x 800m @ VO2",
-  "5 x 1000m @ VO2",
-  "4 x 1200m @ VO2",
-  "5 x 600m @ VO2"
+  "8 x 400m @ VO2 (60s recovery)",
+  "6 x 800m @ VO2 (90s recovery)",
+  "5 x 1000m @ VO2 (2 min recovery)",
+  "4 x 1200m @ VO2 (2 min recovery)",
+  "5 x 600m @ VO2 (75s recovery)"
 ];
 
 const raceLibrary = [
-  "3 x 1600m @ RACE PACE",
-  "5 x 1km @ RACE PACE",
-  "6 x 800m slightly faster than race pace",
-  "4 x 1200m @ RACE PACE"
+  "3 x 1600m @ RACE PACE (2 min recovery)",
+  "5 x 1km @ RACE PACE (90s recovery)",
+  "6 x 800m slightly faster than race pace (90s recovery)",
+  "4 x 1200m @ RACE PACE (2 min recovery)"
 ];
 
 function pick(arr) {
@@ -61,235 +57,168 @@ function addWarmupCooldown(desc) {
   return `2 km warm-up + drills\n${desc}\n2 km cooldown`;
 }
 
-/* SMART LONG RUN BUILDER */
+/* =========================
+   LONG RUN (SMARTER)
+========================= */
 
 function buildLongRun(phase, distance, zones) {
 
-  if (phase === "Aerobic Base Development") {
+  if (phase === "base") {
     return {
-      description: `${distance} km easy aerobic @ ${zones.easy}`,
-      totalKm: distance
+      label: "Aerobic long run",
+      description: `${distance} km easy @ ${zones.easy}`,
+      totalKm: distance,
+      purpose: "Builds endurance and aerobic capacity"
     };
   }
 
-  if (phase === "Threshold & VO2 Build") {
-
-    if (Math.random() > 0.5) {
-
-      const steady = Math.round(distance * 0.3);
-      const easy = distance - steady;
-
-      return {
-        description:
-          `${easy} km easy @ ${zones.easy}\n` +
-          `${steady} km steady finish`,
-        totalKm: distance
-      };
-
-    } else {
-
-      return {
-        description: `${distance} km steady aerobic @ ${zones.easy}`,
-        totalKm: distance
-      };
-    }
+  if (phase === "build") {
+    return {
+      label: "Steady long run",
+      description:
+        `${Math.round(distance * 0.7)} km easy @ ${zones.easy}\n` +
+        `${Math.round(distance * 0.3)} km steady finish`,
+      totalKm: distance,
+      purpose: "Improves fatigue resistance"
+    };
   }
 
-  const fastFinish = Math.round(distance * 0.25);
-  const easy = distance - fastFinish;
-
   return {
+    label: "Fast finish long run",
     description:
-      `${easy} km easy @ ${zones.easy}\n` +
-      `${fastFinish} km fast finish @ ${zones.threshold}`,
-    totalKm: distance
+      `${Math.round(distance * 0.75)} km easy @ ${zones.easy}\n` +
+      `${Math.round(distance * 0.25)} km @ ${zones.threshold}`,
+    totalKm: distance,
+    purpose: "Prepares you for finishing strong"
   };
 }
 
+/* =========================
+   ENGINE
+========================= */
+
 function build5KPlanEngine({
   currentTime,
-  estimatedAbility,
   goalTime,
   weeks,
   frequency,
   currentVolume
 }) {
 
-
-let effectiveCurrentTime = currentTime;
-
-if (!effectiveCurrentTime) {
-  // fallback mapping (in minuten → naar string)
-  const fallbackMap = {
-    cant_run_5k: "35:00",
-    can_run_5k: "30:00",
-    regular_runner: "25:00"
-  };
-
-  effectiveCurrentTime = fallbackMap[estimatedAbility] || "30:00";
-}
-
-if (typeof effectiveCurrentTime !== "string") {
-  effectiveCurrentTime = "30:00";
-}
-
-const currentSec = toSeconds(effectiveCurrentTime); 
-
- const goalSec = goalTime && goalTime.includes(':')
-  ? toSeconds(goalTime)
-  : currentSec;
+  const currentSec = toSeconds(currentTime);
+  const goalSec = toSeconds(goalTime);
 
   const gap = (currentSec - goalSec) / currentSec;
 
-  let warning = null;
+  /* =========================
+     CONFIDENCE
+  ========================= */
 
+  let confidence;
+  if (gap < 0.03) {
+    confidence = "Highly achievable based on your current level";
+  } else if (gap < 0.07) {
+    confidence = "Challenging but realistic with consistent training";
+  } else {
+    confidence = "Ambitious goal — consistency will be key";
+  }
+
+  let warning = null;
   if (gap > 0.10) {
-    warning = `Your goal requires a ${(gap * 100).toFixed(1)}% improvement. Improvements above ~10% within ${weeks} weeks are uncommon.`;
+    warning = `Your goal requires a ${(gap * 100).toFixed(1)}% improvement.`;
   }
 
   const goalPace = goalSec / 5;
   const zones = buildZones(goalPace);
 
   let weeklyVolume = currentVolume;
-
   const planWeeks = [];
 
   for (let w = 1; w <= weeks; w++) {
 
-    /* TAPER */
+    /* =========================
+       PERIODISATION
+    ========================= */
 
-    if (w === weeks) {
-      weeklyVolume *= 0.6;
-    }
-    else if (w === weeks - 1) {
-      weeklyVolume *= 0.7;
-    }
-    else if (w % 4 === 0) {
-      weeklyVolume *= 0.9;
-    }
-    else {
-      weeklyVolume *= 1.05;
-    }
+    let phase;
+
+    if (w <= weeks * 0.4) phase = "base";
+    else if (w <= weeks * 0.75) phase = "build";
+    else phase = "peak";
+
+    /* =========================
+       VOLUME PROGRESSION
+    ========================= */
+
+    if (w === weeks) weeklyVolume *= 0.6;
+    else if (w === weeks - 1) weeklyVolume *= 0.75;
+    else if (w % 4 === 0) weeklyVolume *= 0.9;
+    else weeklyVolume *= 1.05;
 
     weeklyVolume = Math.round(weeklyVolume);
 
-    /* PHASE */
-
-    let focus;
-
-    if (w <= weeks * 0.4) {
-      focus = "Aerobic Base Development";
-    }
-    else if (w <= weeks * 0.75) {
-      focus = "Threshold & VO2 Build";
-    }
-    else {
-      focus = "Race Specific Sharpening";
-    }
-
-    const longRunDistance =
-      w <= weeks * 0.4
-        ? Math.round(weeklyVolume * 0.30)
-        : w <= weeks * 0.75
-        ? Math.round(weeklyVolume * 0.28)
-        : Math.round(weeklyVolume * 0.25);
+    const prev = planWeeks[w - 2]?.volume;
+    const volumeChange = prev
+      ? Math.round(((weeklyVolume - prev) / prev) * 100)
+      : 0;
 
     const sessions = [];
 
-    /* RACE WEEK */
+    /* =========================
+       WORKOUT SELECTION
+    ========================= */
 
-    if (w === weeks) {
+    let thresholdWorkout = pick(thresholdLibrary);
+    let vo2Workout = pick(vo2Library);
 
-      sessions.push({
-        type: "Race Sharpening",
-        description:
-          `2 km warm-up\n` +
-          `4 x 400m @ ${zones.race}\n` +
-          `full recovery\n` +
-          `1.5 km cooldown`,
-        totalKm: 6
-      });
-
-      sessions.push({
-        type: "5K Race",
-        description: `Race day — target pace ${zones.race}`,
-        totalKm: 5
-      });
-
-      planWeeks.push({
-        week: w,
-        focus: "Race Week",
-        volume: weeklyVolume,
-        sessions
-      });
-
-      continue;
+    if (gap > 0.08) {
+      vo2Workout = pick(vo2Library.slice(0, 2)); // easier
     }
 
-    /* WORKOUT SELECTION */
-
-    let thresholdWorkout;
-    let vo2Workout;
-
-    if (focus === "Aerobic Base Development") {
-
-      thresholdWorkout = pick(thresholdLibrary.slice(0,3));
-      vo2Workout = pick(["6 x 400m @ VO2", "5 x 600m @ VO2"]);
-
-    }
-    else if (focus === "Threshold & VO2 Build") {
-
-      thresholdWorkout = pick(thresholdLibrary);
-      vo2Workout = pick(vo2Library);
-
-    }
-    else {
-
-      thresholdWorkout = pick([
-        "15 min tempo @ THRESHOLD",
-        "2 x 10 min @ THRESHOLD"
-      ]);
-
-      vo2Workout = pick(raceLibrary);
-    }
-
-    /* THRESHOLD */
+    /* =========================
+       THRESHOLD
+    ========================= */
 
     sessions.push({
       type: "Threshold",
       description: addWarmupCooldown(
         thresholdWorkout.replace("THRESHOLD", zones.threshold)
       ),
+      purpose: "Improves your ability to sustain race pace",
       totalKm: 9
     });
 
-    /* VO2 */
+    /* =========================
+       VO2
+    ========================= */
 
     sessions.push({
-      type: "VO2",
+      type: "VO2 Max",
       description: addWarmupCooldown(
-        vo2Workout
-          .replace("VO2", zones.vo2)
-          .replace("RACE PACE", zones.race)
+        vo2Workout.replace("VO2", zones.vo2)
       ),
+      purpose: "Increases your aerobic power and speed",
       totalKm: 8
     });
 
-    /* LONG RUN */
+    /* =========================
+       LONG RUN
+    ========================= */
 
-    const longRun = buildLongRun(
-      focus,
-      longRunDistance,
-      zones
-    );
+    const longRunDistance = Math.round(weeklyVolume * 0.28);
+
+    const longRun = buildLongRun(phase, longRunDistance, zones);
 
     sessions.push({
-      type: "Long Run",
+      type: longRun.label,
       description: longRun.description,
+      purpose: longRun.purpose,
       totalKm: longRun.totalKm
     });
 
-    /* EASY RUNS */
+    /* =========================
+       EASY RUNS
+    ========================= */
 
     const remaining = weeklyVolume - longRun.totalKm - 17;
     const easyRuns = frequency - 3;
@@ -306,29 +235,55 @@ const currentSec = toSeconds(effectiveCurrentTime);
       allocated += km;
 
       sessions.push({
-        type: "Easy",
+        type: "Easy Run",
         description: `${km} km easy @ ${zones.easy}`,
+        purpose: "Supports recovery and builds aerobic base",
         totalKm: km
+      });
+    }
+
+    /* =========================
+       RACE WEEK
+    ========================= */
+
+    if (w === weeks) {
+      sessions.length = 0;
+
+      sessions.push({
+        type: "Sharpening",
+        description:
+          `2 km warm-up\n4 x 400m @ ${zones.race} (full recovery)\n1.5 km cooldown`,
+        purpose: "Prepares your legs for race pace",
+        totalKm: 6
+      });
+
+      sessions.push({
+        type: "Race",
+        description: `5K Race @ ${zones.race}`,
+        purpose: "Execute your goal performance",
+        totalKm: 5
       });
     }
 
     planWeeks.push({
       week: w,
-      focus,
+      phase,
       volume: weeklyVolume,
+      volumeChange,
       sessions
     });
   }
 
   return {
     meta: {
-      distance: "5K",
-      currentTime: effectiveCurrentTime,
+      name: input.name || "Runner",
+      currentTime,
       goalTime,
       weeks,
       frequency,
-      gapPercent: +(gap * 100).toFixed(1),
-      warning
+      confidence,
+      warning,
+      gapPercent: +(gap * 100).toFixed(1)
     },
     zones,
     weeks: planWeeks

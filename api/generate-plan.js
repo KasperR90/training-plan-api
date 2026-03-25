@@ -8,14 +8,16 @@ router.post("/generate-plan", (req, res) => {
   try {
 
     const {
-      goalTime,
-      weeks,
-      currentTime,
-      frequency,
-      currentVolume
-    } = req.body;
+     name,
+     goalTime,
+     weeks,
+     currentTime,
+     frequency,
+     currentVolume
+	} = req.body;
 
     const plan = build5KPlanEngine({
+      name: name || "Runner", 
       currentTime: currentTime || goalTime,
       goalTime: goalTime,
       weeks: Number(weeks),
