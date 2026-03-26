@@ -100,6 +100,7 @@ async function processCheckout(session) {
 
   const {
     email,
+    name,
     currentTime,
     goalTime,
     weeks,
@@ -120,6 +121,7 @@ async function processCheckout(session) {
   console.log(`🚀 Generating 5K plan for ${email}`);
 
   const plan = build5KPlanEngine({
+    name,
     currentTime,
     goalTime,
     weeks: Number(weeks),
@@ -227,6 +229,7 @@ async function triggerEmailStep(email, step) {
   try {
     const {
       email,
+      name,
       currentTime,
       goalTime,
       weeks,
@@ -252,7 +255,8 @@ async function triggerEmailStep(email, step) {
       cancel_url: 'https://runiq.run',
       metadata: {
         email,
-        currentTime,
+        name,
+	currentTime,
         goalTime,
         weeks: String(weeks),
         frequency: String(frequency),
