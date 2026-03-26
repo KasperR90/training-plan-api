@@ -98,6 +98,7 @@ function buildLongRun(phase, distance, zones) {
 ========================= */
 
 function build5KPlanEngine({
+  name,  
   currentTime,
   goalTime,
   weeks,
@@ -276,7 +277,7 @@ function build5KPlanEngine({
 
   return {
     meta: {
-      name: input.name || "Runner",
+      name: name || "Runner",
       currentTime,
       goalTime,
       weeks,
