@@ -28,7 +28,6 @@ function normalizeType(type) {
   const t = type.toLowerCase();
 
   if (t.includes("vo2")) return "VO2 Workout";
-  if (t.includes("long")) return "Long Run";
   if (t.includes("easy")) return "Easy Run";
 
   return type;
@@ -41,6 +40,99 @@ const phaseMap = {
 };
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+
+ //FOCUS TEKST//
+
+function getWeekContent(weekNumber, phase) {
+
+  const baseWeeks = [
+    {
+      title: "Foundation",
+      intro: "This week is about building your aerobic base and creating a consistent running routine.",
+      focus: "Consistency > Speed"
+    },
+    {
+      title: "Routine",
+      intro: "Your body is adapting to the rhythm. We gradually increase your workload.",
+      focus: "Build the habit"
+    },
+    {
+      title: "Endurance",
+      intro: "We extend your endurance with slightly longer and steady efforts.",
+      focus: "Stay relaxed"
+    },
+    {
+      title: "Stability",
+      intro: "Your base is getting stronger. We stabilize volume and reinforce consistency.",
+      focus: "Control & rhythm"
+    }
+  ];
+
+  const buildWeeks = [
+    {
+      title: "Intensity",
+      intro: "We introduce more speed and start working closer to your goal pace.",
+      focus: "Controlled intensity"
+    },
+    {
+      title: "Progression",
+      intro: "Workouts become more challenging while staying manageable.",
+      focus: "Push, but smart"
+    },
+    {
+      title: "Strength",
+      intro: "We combine endurance and speed to build race-specific strength.",
+      focus: "Strong & steady"
+    },
+    {
+      title: "Peak Build",
+      intro: "You are approaching peak fitness. We fine-tune your performance.",
+      focus: "Race rhythm"
+    }
+  ];
+
+  const peakWeeks = [
+    {
+      title: "Sharpen",
+      intro: "We reduce volume while keeping intensity sharp.",
+      focus: "Fresh & fast"
+    },
+    {
+      title: "Taper",
+      intro: "Your body recovers and stores energy for race day.",
+      focus: "Trust the process"
+    },
+    {
+      title: "Race Ready",
+      intro: "Everything comes together. You are ready to perform.",
+      focus: "Execute with confidence"
+    }
+  ];
+
+  let pool;
+
+  if (phase === "base") pool = baseWeeks;
+  else if (phase === "build") pool = buildWeeks;
+  else pool = peakWeeks;
+
+  const index = (weekNumber - 1) % pool.length;
+
+  return pool[index];
+}
+
+// TRAINING ZONES
+
+function getZone(plan, zoneKey) {
+  if (!plan || !plan.zones) return "—";
+
+  const entry = Object.entries(plan.zones).find(
+    ([key]) => key.toLowerCase() === zoneKey.toLowerCase()
+  );
+
+  return entry ? entry[1] : "—";
+}
+
 
 /* =========================
    BACKGROUND
@@ -79,9 +171,22 @@ function generatePdf(plan) {
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
-      drawCover(doc, plan);
-      drawProfileAndZones(doc, plan);
-      drawWeeks(doc, plan);
+	// INHOUD PDF
+   drawCover(doc, plan);
+
+	// Intro
+renderIntroPage(doc, plan);
+doc.addPage();
+
+	// Profile
+drawProfileAndZones(doc, plan);
+
+	// Training types page
+renderTrainingTypesPage(doc, plan);
+doc.addPage();
+
+	// Weeks
+drawWeeks(doc, plan);
 
       doc.end();
 
@@ -125,12 +230,6 @@ function drawCover(doc, plan) {
     height: pageHeight
   });
 
-  /* DARK OVERLAY (voor contrast) */
-
-  doc.save();
-  doc.fillOpacity(0.15);
-  doc.rect(0, 0, pageWidth, pageHeight).fill("#000000");
-  doc.restore();
 
   /* INFO BAND */
 
@@ -188,7 +287,114 @@ doc.fillColor("#94A3B8")
 
 doc.addPage();
 
-} // 🔥 DEZE ONTBREEKT → sluit drawCover
+} 
+
+/* =========================
+   WELCOME & HOW-TO
+========================= */
+
+function renderIntroPage(doc, athlete) {
+
+  drawBackground(doc);
+  
+  const pageWidth = doc.page.width;
+  const margin = MARGIN;
+  const width = CONTENT_WIDTH;
+
+
+  let y = 80;
+
+  // ===== TITLE =====
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(26)
+    .fillColor("#FFFFFF")
+    .text("Welcome to your 5K Plan", margin, y);
+
+  y += 40;
+
+  // ===== INTRO TEXT =====
+  doc
+    .font("Helvetica")
+    .fontSize(12)
+    .fillColor("#B0B0B0")
+    .text(
+      "This isn’t just a schedule. It’s a structured path designed to help you run stronger, faster, and with confidence on race day.",
+      margin,
+      y,
+      { width }
+    );
+
+  y += 60;
+
+  // ===== CARD HELPER =====
+  function drawCard(title, lines) {
+    const cardPadding = 20;
+    const cardWidth = CONTENT_WIDTH;
+    let cardY = y;
+
+    // Calculate height
+    let textHeight = 0;
+    lines.forEach(() => {
+      textHeight += 16;
+    });
+
+    const cardHeight = cardPadding * 2 + 20 + textHeight;
+
+    // Background
+    doc.save();
+	doc.fillOpacity(0.85);
+	doc.roundedRect(margin, cardY, cardWidth, cardHeight, 12)
+	.fill(CARD_BG);
+    doc.restore();
+
+    // Accent bar
+    doc.rect(margin, cardY + 6, 3, cardHeight - 12).fill(ACCENT);
+
+    // Title
+    doc
+      .fillColor("#FFFFFF")
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .text(title, margin + 20, cardY + 15);
+
+    // Content
+    let textY = cardY + 40;
+
+    doc
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#B0B0B0");
+
+    lines.forEach((line) => {
+      doc.text("• " + line, margin + 20, textY);
+      textY += 16;
+    });
+
+    y += cardHeight + 20;
+  }
+
+  // ===== CARDS =====
+
+  drawCard("How this plan works", [
+    "Each week builds progressively towards your 5K race",
+    "You’ll balance easy runs, quality sessions, and recovery",
+    "Consistency matters more than any single workout"
+  ]);
+
+  drawCard("How to schedule your week", [
+    "Place sessions on days that fit your lifestyle",
+    "Avoid stacking hard workouts back-to-back",
+    "Keep at least one easy or rest day between quality sessions"
+  ]);
+
+  drawCard("What to focus on", [
+    "Run easy days truly easy to support recovery",
+    "Execute quality sessions with intent, not exhaustion",
+    "Trust the process — progress comes from consistency"
+  ]);
+}
+
 
 /* =========================
    PROFILE + ZONES
@@ -221,51 +427,66 @@ function drawProfileAndZones(doc, plan) {
 
   y += 40;
 
-  /* =========================
-     SNAPSHOT CARD
-  ========================= */
+ /* =========================
+   ATHLETE NAME (FOCUS)
+========================= */
 
-  const SNAP_HEIGHT = 70;
+doc.fillColor(TEXT_SECONDARY)
+  .fontSize(10)
+  .text("ATHLETE", LEFT, y);
 
+y += 12;
+
+doc.fillColor(TEXT_PRIMARY)
+  .fontSize(20)
+  .text(plan.meta.name || "Runner", LEFT, y);
+
+y += 30;
+
+/* =========================
+   METRIC CARDS (GRID)
+========================= */
+
+const CARD_HEIGHT = 50;
+const GAP = 10;
+const COL_WIDTH = (CONTENT_WIDTH - GAP) / 2;
+
+function drawCard(label, value, x, y) {
   doc.save();
   doc.fillOpacity(0.9);
-  doc.roundedRect(LEFT, y, CONTENT_WIDTH, SNAP_HEIGHT, 12).fill(CARD_BG);
+  doc.roundedRect(x, y, COL_WIDTH, CARD_HEIGHT, 12).fill(CARD_BG);
   doc.restore();
 
-  const snapY = y + CARD_PADDING_Y;
+  // 🔥 Accent bar (consistent met rest)
+  doc.rect(x, y + 6, 3, CARD_HEIGHT - 12).fill(ACCENT);
 
-  // Athlete
   doc.fillColor(TEXT_SECONDARY)
-    .fontSize(10)
-    .text("ATHLETE", LEFT + CARD_PADDING_X, snapY);
+    .fontSize(9)
+    .text(label.toUpperCase(), x + 14, y + 10);
 
   doc.fillColor(TEXT_PRIMARY)
-    .fontSize(14)
-    .text(plan.meta.name || "Runner", LEFT + CARD_PADDING_X, snapY + 14);
+    .fontSize(13)
+    .text(value, x + 14, y + 24);
+}
 
-  // Goal
-  doc.fillColor(TEXT_SECONDARY)
-    .fontSize(10)
-    .text("GOAL", CENTER - 60, snapY);
+/* ROW 1 */
+drawCard("Current 5K", plan.meta.currentTime, LEFT, y);
+drawCard("Goal 5K", plan.meta.goalTime, LEFT + COL_WIDTH + GAP, y);
 
-  doc.fillColor(TEXT_PRIMARY)
-    .fontSize(14)
-    .text(`Sub ${plan.meta.goalTime}`, CENTER - 60, snapY + 14);
+y += CARD_HEIGHT + GAP;
 
-  // Plan
-  doc.fillColor(TEXT_SECONDARY)
-    .fontSize(10)
-    .text("PLAN", RIGHT - 100, snapY);
+/* ROW 2 */
+drawCard("Weekly Sessions", `${plan.meta.frequency}`, LEFT, y);
+drawCard("Current Weekly Volume", `${plan.meta.startVolume || plan.meta.currentVolume} km`, LEFT + COL_WIDTH + GAP, y);
 
-  doc.fillColor(TEXT_PRIMARY)
-    .fontSize(14)
-    .text(`${plan.meta.weeks} weeks`, RIGHT - 100, snapY + 14, {
-      width: 80,
-      align: "right"
-    });
+y += CARD_HEIGHT + GAP;
 
-  y += SNAP_HEIGHT + 30;
+/* ROW 3 */
+drawCard("Duration", `${plan.meta.weeks} weeks`, LEFT, y);
 
+y += CARD_HEIGHT + 30;
+
+ 
   /* =========================
      PERFORMANCE INSIGHT
   ========================= */
@@ -278,8 +499,14 @@ function drawProfileAndZones(doc, plan) {
 
   const INSIGHT_HEIGHT = 60;
 
-  doc.roundedRect(LEFT, y, CONTENT_WIDTH, INSIGHT_HEIGHT, 10)
-    .fill("#0F172A");
+doc.save();
+doc.fillOpacity(0.85);
+doc.roundedRect(MARGIN, y, CONTENT_WIDTH, INSIGHT_HEIGHT, 12)
+  .fill(CARD_BG);
+doc.restore();
+
+// Accent bar
+doc.rect(MARGIN, y + 6, 3, INSIGHT_HEIGHT - 12).fill(ACCENT);
 
   const insightText =
     plan.meta.insight ||
@@ -296,56 +523,6 @@ function drawProfileAndZones(doc, plan) {
 
   y += INSIGHT_HEIGHT + 30;
 
-  /* =========================
-     PROGRESS
-  ========================= */
-
-  doc.fillColor(TEXT_PRIMARY)
-    .fontSize(16)
-    .text("Projected Progress", LEFT, y);
-
-  y += 20;
-
-  const PROGRESS_HEIGHT = 60;
-
-  doc.save();
-  doc.fillOpacity(0.9);
-  doc.roundedRect(LEFT, y, CONTENT_WIDTH, PROGRESS_HEIGHT, 10)
-    .fill(CARD_BG);
-  doc.restore();
-
-  const progY = y + 18;
-
-  // Current
-  doc.fillColor(TEXT_SECONDARY)
-    .fontSize(10)
-    .text("CURRENT", LEFT + CARD_PADDING_X, progY - 10);
-
-  doc.fillColor(TEXT_PRIMARY)
-    .fontSize(16)
-    .text(plan.meta.currentTime, LEFT + CARD_PADDING_X, progY);
-
-  // Arrow PERFECT CENTER
-  doc.fillColor(ACCENT)
-    .fontSize(18)
-    .text("→", CENTER - 5, progY);
-
-  // Goal
-  doc.fillColor(TEXT_SECONDARY)
-    .fontSize(10)
-    .text("GOAL", RIGHT - 100, progY - 10, {
-      width: 80,
-      align: "right"
-    });
-
-  doc.fillColor(TEXT_PRIMARY)
-    .fontSize(16)
-    .text(plan.meta.goalTime, RIGHT - 100, progY, {
-      width: 80,
-      align: "right"
-    });
-
-  y += PROGRESS_HEIGHT + 30;
 
   /* =========================
      TRAINING ZONES
@@ -371,10 +548,12 @@ function drawProfileAndZones(doc, plan) {
 
     const ROW_HEIGHT = 32;
 
-    doc.save();
-    doc.fillOpacity(0.85);
-    doc.roundedRect(LEFT, y, CONTENT_WIDTH, ROW_HEIGHT, 8).fill(CARD_BG);
-    doc.restore();
+   doc.save();
+	doc.fillOpacity(0.85);
+	doc.roundedRect(LEFT, y, CONTENT_WIDTH, ROW_HEIGHT, 12).fill(CARD_BG);
+	doc.restore();
+
+	doc.rect(LEFT, y + 6, 3, ROW_HEIGHT - 12).fill(ACCENT);
 
     // Zone name
     doc.fillColor(TEXT_SECONDARY)
@@ -401,12 +580,261 @@ function drawProfileAndZones(doc, plan) {
 }
 
 /* =========================
+     TRAINING TYPES PAGE
+  ========================= */
+
+function renderTrainingTypesPage(doc, plan) {
+
+  drawBackground(doc);
+
+  const margin = MARGIN;
+  const width = CONTENT_WIDTH;
+  let y = 70;
+
+  // ===== TITLE =====
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(26)
+    .fillColor(TEXT_PRIMARY)
+    .text("Understanding your training", margin, y);
+
+  y += 40;
+
+  // ===== INTRO =====
+  doc
+    .font("Helvetica")
+    .fontSize(12)
+    .fillColor(TEXT_SECONDARY)
+    .text(
+      "Each session in your plan has a specific purpose. Use your training zones as a guide to execute each workout correctly.",
+      margin,
+      y,
+      { width }
+    );
+
+  y += 60;
+
+  function drawCard(title, lines) {
+
+    const PADDING = 16;
+    const LINE_HEIGHT = 14;
+    const cardWidth = CONTENT_WIDTH;
+
+    const contentHeight = lines.length * LINE_HEIGHT;
+    const cardHeight = contentHeight + 40;
+
+    if (y + cardHeight > doc.page.height - 60) {
+      doc.addPage();
+      drawBackground(doc);
+      y = MARGIN;
+    }
+
+    // Card bg
+    doc.save();
+    doc.fillOpacity(0.85);
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 12)
+      .fill(CARD_BG);
+    doc.restore();
+
+    // Accent
+    doc.rect(margin, y + 6, 3, cardHeight - 12).fill(ACCENT);
+
+    // Title
+    doc.fillColor(TEXT_PRIMARY)
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .text(title, margin + PADDING, y + 12);
+
+    // Content
+    let textY = y + 30;
+
+    doc.font("Helvetica")
+      .fontSize(11)
+      .fillColor(TEXT_PRIMARY);
+
+    lines.forEach(line => {
+      doc.text(line, margin + PADDING, textY);
+      textY += LINE_HEIGHT;
+    });
+
+    y += cardHeight + 12;
+  }
+
+
+
+// ===== CARDS =====
+
+drawCard("Easy Run", [
+  `Zone: ${getZone(plan, "easy")}`,
+"",
+  "Builds aerobic fitness and supports recovery",
+  "Keep effort low and conversational"
+]);
+
+drawCard("Long Run", [
+  `Zone: ${getZone(plan, "easy")}`,
+"",
+  "Builds endurance and fatigue resistance",
+  "Stay relaxed — duration matters more than pace"
+]);
+
+drawCard("Threshold / Tempo Blocks", [
+  `Zone: ${getZone(plan, "threshold")}`,
+"",
+  "Sustained efforts at a challenging but controlled pace",
+  "Focus on rhythm, breathing, and control"
+]);
+
+drawCard("VO2 Intervals", [
+  `Zone: ${getZone(plan, "vo2")}`,
+"",
+  "Short, intense efforts to improve speed and capacity",
+  "Run hard, but maintain good form"
+]);
+
+drawCard("Warm-up & drills", [
+  "Start every quality session with 10–15 min easy running",
+  "Add dynamic drills (e.g. skips, high knees)",
+  "Finish with 2–3 short strides"
+]);
+
+drawCard("Cooldown", [
+  "Finish sessions with 5–10 min easy running",
+  "Allow heart rate to gradually decrease",
+  "Supports recovery and adaptation"
+]);
+
+ }
+
+/* =========================
+     RACE DAY PAGE
+  ========================= */
+
+
+function renderRaceDayPage(doc) {
+
+  drawBackground(doc);
+
+  const margin = MARGIN;
+  const width = CONTENT_WIDTH;
+  let y = 80;
+
+  // ===== TITLE =====
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(26)
+    .fillColor(TEXT_PRIMARY)
+    .text("Race Day Strategy", margin, y);
+
+  y += 40;
+
+  // ===== INTRO =====
+  doc
+    .font("Helvetica")
+    .fontSize(12)
+    .fillColor(TEXT_SECONDARY)
+    .text(
+      "This is where everything comes together. Stay controlled, trust your training, and execute your race with confidence.",
+      margin,
+      y,
+      { width }
+    );
+
+  y += 60;
+
+  function drawCard(title, lines) {
+
+    const PADDING = 16;
+    const LINE_HEIGHT = 16;
+    const cardWidth = CONTENT_WIDTH;
+
+    const contentHeight = lines.length * LINE_HEIGHT;
+    const cardHeight = contentHeight + 40;
+
+    // Page safety
+    if (y + cardHeight > doc.page.height - 60) {
+      doc.addPage();
+      drawBackground(doc);
+      y = MARGIN;
+    }
+
+    // Card bg
+    doc.save();
+    doc.fillOpacity(0.85);
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 12)
+      .fill(CARD_BG);
+    doc.restore();
+
+    // Accent
+    doc.rect(margin, y + 6, 3, cardHeight - 12).fill(ACCENT);
+
+    // Title
+    doc.fillColor(TEXT_PRIMARY)
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .text(title, margin + PADDING, y + 12);
+
+    // Content
+    let textY = y + 30;
+
+    doc.font("Helvetica")
+      .fontSize(11)
+      .fillColor(TEXT_PRIMARY);
+
+    lines.forEach(line => {
+      doc.text(line, margin + PADDING, textY);
+      textY += LINE_HEIGHT;
+    });
+
+    y += cardHeight + 16;
+  }
+
+  // ===== CARDS =====
+
+  drawCard("Before the race", [
+    "Keep your routine simple and familiar",
+    "Eat a light, proven pre-race meal",
+    "Arrive early and stay relaxed"
+  ]);
+
+  drawCard("Warm-up", [
+    "10–15 min easy running",
+    "Add a few short strides",
+    "You should feel ready, not tired"
+  ]);
+
+  drawCard("Pacing strategy", [
+    "Start controlled — don’t go out too fast",
+    "Settle into your goal pace after 1 km",
+    "Focus on rhythm and breathing"
+  ]);
+
+  drawCard("Final kilometers", [
+    "Expect discomfort — this is normal",
+    "Stay focused and maintain form",
+    "Push when it counts"
+  ]);
+
+  drawCard("Mindset", [
+    "Trust the work you've done",
+    "Stay present, kilometer by kilometer",
+    "You are ready for this"
+  ]);
+}
+
+/* =========================
    WEEKS
 ========================= */
 
 function drawWeeks(doc, plan) {
 
   plan.weeks.forEach((week, index) => {
+
+    // 👇 Race Day pagina vóór laatste week
+if (index === plan.weeks.length - 1) {
+  renderRaceDayPage(doc);
+  doc.addPage();
+}
 
     drawBackground(doc);
 
@@ -415,97 +843,139 @@ function drawWeeks(doc, plan) {
 
     /* HEADER */
 
-    doc.fillColor(TEXT_PRIMARY)
-  .fontSize(26)
-  .text(`Week ${week.week}`);
+// TITLE
+const content = getWeekContent(week.week, phase);
+
+doc.fillColor(TEXT_PRIMARY)
+  .font("Helvetica-Bold")
+  .fontSize(24)
+  .text(`Week ${week.week} — ${content.title}`);
 
 doc.fillColor(ACCENT)
   .fontSize(12)
   .text(phaseMap[phase]);
 
 doc.fillColor(TEXT_SECONDARY)
+  .fontSize(11)
+  .text(content.intro, {
+    width: CONTENT_WIDTH
+  });
+
+let y = doc.y + 10;
+
+		// ===== VOLUME BLOCK =====
+
+const VOLUME_HEIGHT = 50;
+
+doc.save();
+doc.fillOpacity(0.85);
+doc.roundedRect(MARGIN, y, CONTENT_WIDTH, VOLUME_HEIGHT, 12)
+  .fill(CARD_BG);
+doc.restore();
+
+// Accent bar
+doc.rect(MARGIN, y + 6, 3, VOLUME_HEIGHT - 12).fill(ACCENT);
+
+// Volume text
+doc.fillColor(TEXT_SECONDARY)
+  .fontSize(10)
+  .text("WEEKLY VOLUME", MARGIN + 14, y + 10);
+
+// Format delta
+const delta = week.volumeChange;
+const deltaText =
+  delta > 0 ? `+${delta}%` :
+  delta < 0 ? `${delta}%` :
+  "—";
+const deltaColor =
+  delta > 0 ? "#7ED6B2" :   // groen
+  delta < 0 ? "#F87171" :   // rood (deload)
+  TEXT_PRIMARY;
+
+// Main line
+doc.fillColor(deltaColor)
+  .font("Helvetica-Bold")
+  .fontSize(14)
   .text(
-    `Volume: ${week.volume} km (${change > 0 ? '+' : ''}${change}%)`
-  );	
+    `${week.volume} km (${deltaText})`,
+    MARGIN + 14,
+    y + 24
+  );
+
+y += VOLUME_HEIGHT + 20;
 
 
+    	/* SESSIONS */
 
-
-    /* SESSIONS */
-
-    doc.moveDown();
+    	doc.moveDown();
 
 	doc.fillColor(TEXT_SECONDARY)
- 	 .fontSize(10)
- 	 .text("Your sessions this week:");
+	 .fontSize(12)
+	 .text("Your sessions this week:", MARGIN + 16, y);
+
+	y += 28; // 🔥 spacing naar eerste card
 
 	doc.moveDown(0.5);
 
-        let y = doc.y;
-
-    week.sessions.forEach((session, i) => {
+      week.sessions.forEach((session, i) => {
 
       const type = normalizeType(session.type);
       const description = session.description || "";
-      const purpose = session.purpose || "";
+      
 
-      const DETAILS_WIDTH = CONTENT_WIDTH - 40;
+/* CARD*/
 
-      const descHeight = doc.heightOfString(description, {
-        width: DETAILS_WIDTH
-      });
+  
+const PADDING = 16;
+const LINE_HEIGHT = 16;
 
-      const purposeHeight = doc.heightOfString(purpose, {
-        width: DETAILS_WIDTH
-      });
+const lines = description.split("\n");
+const contentHeight = lines.length * LINE_HEIGHT;
+const cardHeight = contentHeight + 40;
 
-      const ROW_HEIGHT = descHeight + purposeHeight + 50;
-
-      /* CARD */
-
-      doc.save();
-      doc.fillOpacity(0.85);
-
-      doc.roundedRect(MARGIN, y, CONTENT_WIDTH, ROW_HEIGHT, 12)
-        .fill(CARD_BG);
-
-      doc.restore();
-
-      /* ACCENT BAR */
-
-      doc.rect(MARGIN, y + 4, 3, ROW_HEIGHT - 8).fill(ACCENT);
-
-      /* TEXT */
-
-      doc.fillColor(TEXT_PRIMARY)
-        .fontSize(12)
-        .text(`${days[i % 7]} — ${type}`, MARGIN + 12, y + 10);
-
-      doc.fontSize(11)
-        .text(description, MARGIN + 12, y + 28, {
-          width: DETAILS_WIDTH
-        });
-
-      doc.fillColor(TEXT_SECONDARY)
-        .fontSize(10)
-        .text(
-          `→ ${purpose}`,
-          MARGIN + 12,
-          y + 28 + descHeight + 6,
-          { width: DETAILS_WIDTH }
-        );
-
-      y += ROW_HEIGHT + 12;
-
-      if (y + ROW_HEIGHT > doc.page.height - 60) {
+// 🔥 page check VOOR render
+if (y + cardHeight > doc.page.height - 60) {
   doc.addPage();
   drawBackground(doc);
   y = MARGIN;
 }
 
-    });
+// CARD
+doc.save();
+doc.fillOpacity(0.85);
+doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardHeight, 12)
+  .fill(CARD_BG);
+doc.restore();
 
-    doc.addPage();
+// ACCENT BAR
+doc.rect(MARGIN, y + 6, 3, cardHeight - 12).fill(ACCENT);
+
+// TITLE
+doc.fillColor(TEXT_PRIMARY)
+  .font("Helvetica-Bold")
+  .fontSize(13)
+  .text(type, MARGIN + PADDING, y + 12);
+
+// DESCRIPTION
+let textY = y + 30;
+
+doc.font("Helvetica")
+  .fontSize(11)
+  .fillColor(TEXT_PRIMARY);
+
+lines.forEach(line => {
+  doc.text(line, MARGIN + PADDING, textY);
+  textY += LINE_HEIGHT;
+});
+
+// spacing
+y += cardHeight + 16;
+
+  });
+
+ if (index < plan.weeks.length - 1) {
+      doc.addPage();
+    }
 
   });
 
