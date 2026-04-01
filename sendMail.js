@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const MAIL_FROM = process.env.FROM_EMAIL || 'onboarding@send.runiq.run';
+const MAIL_FROM = process.env.FROM_EMAIL || 'onboarding@runiq.run';
 
 /* =========================
    Send training plan email
