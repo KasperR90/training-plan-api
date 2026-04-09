@@ -28,10 +28,50 @@ async function sendTrainingPlanMail({
   const subject = `Your RUNIQ ${distanceLabel} Training Plan is Ready`;
 
   const htmlContent = `
+<h1>Your 5K Training Plan is Ready 🏃‍♂️</h1>
+
 <p>Hi,</p>
-<p>Thank you for your purchase — your <strong>${distanceLabel} training plan</strong> is ready.</p>
-<p>See attachment.</p>
-<p><strong>Train smart, race strong,</strong><br/>RUNIQ</p>
+
+<p>
+  Thank you for your purchase — your personalized <strong>RUNIQ 5K training plan</strong> is ready.
+</p>
+
+<p>
+  You’ll find your full plan attached as a PDF. This plan is designed to help you train with structure, stay consistent, and perform at your best on race day.
+</p>
+
+<h3>What makes this plan effective:</h3>
+<ul>
+  <li>Progressive weekly structure with built-in recovery</li>
+  <li>Training based on pace zones — not guesswork</li>
+  <li>Balanced mix of easy runs, threshold sessions, and long runs</li>
+  <li>A clear taper phase so you peak at the right moment</li>
+</ul>
+
+<h3>How to get the most out of it:</h3>
+<ul>
+  <li>Focus on consistency over perfection</li>
+  <li>Run by effort and pacing, not ego</li>
+  <li>Don’t try to “make up” missed sessions</li>
+  <li>Listen to your body — adjust when needed</li>
+</ul>
+
+<p>
+  This plan is built for real-world progress — not just theory. Stick with it, trust the process, and you’ll be surprised how much you improve.
+</p>
+
+<p>
+  If you have any questions or feedback, just reply to this email — we read everything.
+</p>
+
+<p>
+  Good luck with your training. We’re rooting for you all the way to the finish line.
+</p>
+
+<p>
+  <strong>Train smart. Race strong.</strong><br/>
+  — RUNIQ
+</p>
 `;
 
   try {

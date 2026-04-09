@@ -405,8 +405,13 @@ function build5KPlanEngine({
     warning = `Your goal requires a ${(gap * 100).toFixed(1)}% improvement.`;
   }
 
+  const currentPace = currentSec / 5;
   const goalPace = goalSec / 5;
-  const zones = buildZones(goalPace);
+
+  const blendFactor = Math.min(1, gap * 2.5);
+  const effectivePace = currentPace - (currentPace - goalPace) * blendFactor;
+
+  const zones = buildZones(effectivePace);
 
   let weeklyVolume = currentVolume;
   const planWeeks = [];
